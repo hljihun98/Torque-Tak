@@ -97,11 +97,17 @@
  <div class="col col-b">
   <section class="card">
     <div class="sec-head">
-      <span class="lbl">암나사 물림 깊이 Le</span>
+      <span class="lbl" id="leTitle">암나사 물림 깊이 Le</span>
       <span class="v" id="leRead">—</span>
     </div>
-    <div class="draw-box"><svg id="draw" viewBox="0 0 340 172" role="img" aria-label="볼트 체결부 단면도"></svg></div>
+    <div class="draw-box"><svg id="draw" viewBox="0 0 340 200" role="img" aria-label="볼트 체결부 단면도"></svg></div>
     <div class="le-ctl">
+      <div class="seg sm" id="segMode"><div class="seg-ind" id="indMode"></div></div>
+      <div class="grip-in" id="gripWrap" hidden>
+        <span>체결 두께</span>
+        <input id="grip" type="number" inputmode="decimal" min="0" step="0.5" placeholder="0" aria-label="체결 두께">
+        <span>mm</span>
+      </div>
       <div class="track" id="track" role="slider" aria-label="유효 물림 깊이" tabindex="0" aria-valuemin="0" aria-valuenow="0">
         <div class="rail"><i class="fill" id="fill" style="width:0"></i></div>
         <div class="tick tick-min" id="tickMin"></div>

@@ -15,6 +15,8 @@
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+/* display를 지정한 요소에서도 hidden 속성이 이기도록 — .grip-in 등이 flex라 UA 규칙에 진다 */
+[hidden]{display:none !important}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
   letter-spacing:-.01em;padding:0 0 calc(28px + var(--safe-b));overscroll-behavior-y:none}
@@ -238,6 +240,14 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .load-in span{font-size:14px;font-weight:600;color:var(--ink-3);flex:none}
 .load-clr{font-size:12px;font-weight:600;color:var(--brand);padding:8px 0;margin-top:6px}
 .lbl-sp{display:block;margin-top:15px}
+/* 슬라이더 조정 대상 전환 · 체결 두께 입력 */
+.seg.sm{margin-top:0;margin-bottom:11px}
+.seg.sm button{height:36px;font-size:12.5px}
+.grip-in{display:flex;align-items:center;gap:9px;background:var(--surface-2);
+  border-radius:var(--r-sm);padding:0 13px;height:44px;margin-bottom:12px}
+.grip-in span{font-size:11.5px;font-weight:600;color:var(--ink-3);flex:none}
+.grip-in input{flex:1;min-width:0;height:100%;text-align:right;font-family:var(--num);
+  font-size:17px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .slv-desc{font-size:11.5px;font-weight:500;color:var(--ink-3);line-height:1.5;margin-top:7px}
 
 .acc{margin-top:12px;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}

@@ -138,6 +138,13 @@ const SLV_SEG=[
   {v:"phi",  label:"하중 계수", desc:"외력 중 볼트가 실제로 부담하는 몫까지 반영"}
 ];
 const SLV_RANK={geo:0,embed:1,phi:2};
+/* 슬라이더가 무엇을 조정할지 — 길이 모드에서는 물림이 유도값이 된다 */
+const SMODE_SEG=[
+  {v:"le", label:"물림 깊이 Le"},
+  {v:"len",label:"볼트 길이"}
+];
+/* 시판 표준 길이 (ISO 4762 계열) — 길이 모드에서 여기로 스냅한다 */
+const BOLT_LEN=[3,4,5,6,8,10,12,14,16,18,20,22,25,28,30,35,40,45,50,55,60,65,70,80,90,100,110,120,130,140,150,160,180,200];
 
 /* ══════════════════════════════════════════════════════════
    모델 상수 — 출처와 성격을 명시
@@ -559,7 +566,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 
 const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",lock:"none",
          preload:70,Le:0,loadType:"none",load:0,headAuto:true,
-         shank:0,slevel:"embed"};   // shank 0 = 비나사부 미고려
+         shank:0,slevel:"embed",     // shank 0 = 비나사부 미고려
+         smode:"le",grip:0};         // 슬라이더 조정 대상 · 체결 두께(길이 모드 전용)
 let R=null,P=null,lastDigits="",lastSide=null;
 
 const IC={
@@ -589,6 +597,10 @@ function render(fast){
   }
   $("err").hidden=true;
   if(S.headAuto&&P.head)S.head=P.head;
+  /* 길이 모드에서는 Le가 입력이 아니라 유도값이다. 머리 형상이나 체결 두께가
+     바뀌어도 따라오도록 계산 직전에 매번 다시 구한다. */
+  if(S.smode==="len"&&P.len!=null&&S.grip>0)
+    S.Le=Math.max(0,Math.round((P.len-headHOf()-S.grip)*100)/100);
 
   R=compute({d:P.d,pitch:P.pitch,cls:S.cls,head:S.head,mat:S.mat,k:S.k,washer:S.washer,lock:S.lock,
              preload:S.preload,Le:S.Le,loadType:S.loadType,load:S.load,
@@ -624,13 +636,18 @@ function render(fast){
   $("sUtil").innerHTML=(R.util*100).toFixed(0)+'<small>%</small>';
   $("sBreak").innerHTML=sig3(R.Tbreak)+'<small>N·m</small>';
 
-  $("leRead").textContent=R.hasLe?f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d):"미설정";
-  $("leNote").textContent=!R.okPossible
-    ? "다른 검토 항목이 막고 있어 Le만으로는 적합해지지 않습니다"
-    : R.hasLe
-      ?(R.threads.toFixed(1)+"산 물림 · 최소 "+f1(R.LeMin)+" / 적합 "+f1(R.LeOk)+" mm")
-      :"밀어서 실제 물림 길이를 맞추세요";
-  $("leReset").hidden=!R.hasLe;
+  const lm=lenMode();
+  $("leTitle").textContent=lm?"볼트 길이":"암나사 물림 깊이 Le";
+  $("gripWrap").hidden=S.smode!=="len";
+  $("leRead").textContent = lm ? P.len+" mm · 물림 "+f1(R.Le)+" mm"
+    : R.hasLe ? f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d) : "미설정";
+  $("leNote").textContent =
+      S.smode==="len"&&P.len==null ? "사양에 길이를 넣어야 길이 모드를 쓸 수 있습니다 — 예: M8-40"
+    : S.smode==="len"&&!S.grip     ? "체결 두께를 입력하면 표준 길이를 밀어가며 물림을 볼 수 있습니다"
+    : !R.okPossible                ? "다른 검토 항목이 막고 있어 "+(lm?"길이":"Le")+"만으로는 적합해지지 않습니다"
+    : R.hasLe                      ? R.threads.toFixed(1)+"산 물림 · 최소 "+f1(R.LeMin)+" / 적합 "+f1(R.LeOk)+" mm"
+    :                                "밀어서 실제 물림 길이를 맞추세요";
+  $("leReset").hidden=lm||!R.hasLe;
 
   renderChecks(); renderRemoval();
   updateSlider(); drawSection();
@@ -814,6 +831,16 @@ function buildSegs(){
   seg("segSlv","indSlv",SLV_SEG.map(o=>o.v),S.slevel,
       v=>SLV_SEG.find(o=>o.v===v).label,
       v=>{S.slevel=v;render();});
+  seg("segMode","indMode",SMODE_SEG.map(o=>o.v),S.smode,
+      v=>SMODE_SEG.find(o=>o.v===v).label,
+      v=>{
+        /* 길이 모드로 넘어갈 때 지금 상태가 이미 함축하는 체결 두께를 그대로 넘겨준다 */
+        if(v==="len"&&!S.grip&&P&&!P.err&&P.len!=null&&S.Le>0){
+          const g=P.len-headHOf()-S.Le;
+          if(g>0){S.grip=Math.round(g*10)/10; $("grip").value=S.grip;}
+        }
+        S.smode=v;render();
+      });
 }
 function seg(id,indId,items,cur,lbl,cb){
   const el=$(id);
@@ -839,7 +866,7 @@ function seg(id,indId,items,cur,lbl,cb){
    ══════════════════════════════════════════════════════════ */
 function drawSection(){
   if(!R){$("draw").innerHTML="";return;}
-  const W=340,cy=76, plateL=52, blkL=118, blkR=334;
+  const W=340,cy=88, plateL=52, blkL=118, blkR=334;   // 치수선 2줄이 더 붙어 아래로 내렸다
   const rMaj=Math.max(8,Math.min(17,6+R.d*0.9));
   const cap=rMaj*1.45, bh=Math.max(30,rMaj+13);
   const wOn=S.washer!=="none";
@@ -865,17 +892,22 @@ function drawSection(){
   /* 비나사부 — 그립 폭은 고정이고, 그 안에서 샹크가 차지하는 비율을 보여준다.
      비율이 1을 넘으면 샹크가 탭 면을 파고드는 상태(런아웃)다. */
   if(R.shankOn){
-    const gw=blkL-plateL, lsEff=R.ls+2*R.p, fr=lsEff/R.Lk, over=fr>1;
-    const inW=gw*Math.min(1,fr);
+    const gw=blkL-plateL, frE=(R.ls+2*R.p)/R.Lk, over=frE>1;
+    const inW=gw*Math.min(1,R.ls/R.Lk);          // 실제 비나사부
     g.push(`<rect x="${plateL}" y="${cy-rMaj}" width="${inW.toFixed(1)}" height="${rMaj*2}" fill="#8FA6C4"/>`);
     if(over){
-      const ow=Math.min(gw*(fr-1),eng);
+      const ow=Math.min(gw*(frE-1),eng);         // 불완전 나사까지 포함해 탭을 파고든 만큼
       g.push(`<rect x="${blkL}" y="${cy-rMaj}" width="${ow.toFixed(1)}" height="${rMaj*2}" fill="#D92D20" opacity=".5"/>`);
       /* 위는 물림 산수·좌면 압괴 라벨이, 아래 dy부터는 치수선이 쓴다. 그 사이 왼쪽이 빈다. */
       g.push(`<text x="${plateL}" y="${(cy+bh+11).toFixed(1)}" font-size="9.5" font-weight="700" fill="#D92D20">샹크 간섭</text>`);
     }
     const sx=plateL+inW;
     g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?"#D92D20":"#5E7290"}" stroke-width="1.6"/>`);
+    /* 비나사부 치수 — 머리 밑에서 나사가 시작되는 지점까지 */
+    const uy=cy-bh-16, c2=over?"#D92D20":"#5E7290";
+    g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(sx,uy-4)} L${N(sx,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${headR}" y1="${uy}" x2="${sx.toFixed(1)}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
+    g.push(`<text x="${((headR+sx)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">비나사부 ${f1(R.ls)}</text>`);
   }
   /* 와셔 */
   if(wOn) g.push(`<rect x="${plateL-wThk}" y="${cy-wRad}" width="${wThk}" height="${wRad*2}" rx="1.5" fill="#8FA6C4"/>`);
@@ -915,6 +947,13 @@ function drawSection(){
   g.push(`<text x="${blkL+eng/2}" y="${dy+17}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${col}">Le ${f1(Le)} mm</text>`);
   if(idle)g.push(`<text x="${blkL+eng/2}" y="${dy+32}" text-anchor="middle" font-size="10" font-weight="600" fill="#8593A8">적합 기준값 · 아직 미설정</text>`);
   if(wOn)g.push(`<text x="${plateL-2}" y="${dy+17}" text-anchor="end" font-size="10" font-weight="600" fill="#5E7290">${WASHER[S.washer].label}</text>`);
+  /* 나사 길이 치수 — 물림 치수 바깥쪽에 한 줄 더 (제도 관례대로 전체 치수가 아래) */
+  if(R.len!=null){
+    const ly=dy+(idle?46:30), lx1=headR, lx2=blkL+eng;
+    g.push(`<path d="M${N(lx1,ly-4)} L${N(lx1,ly+4)} M${N(lx2,ly-4)} L${N(lx2,ly+4)}" stroke="#8593A8" stroke-width="1.3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${lx1}" y1="${ly}" x2="${lx2.toFixed(1)}" y2="${ly}" stroke="#8593A8" stroke-width="1.4" stroke-linecap="round"/>`);
+    g.push(`<text x="${((lx1+lx2)/2).toFixed(1)}" y="${ly+14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5E7290">나사 길이 ${R.len} mm${R.H.cone?" (머리 포함)":""}</text>`);
+  }
   g.push(`<text x="${W-4}" y="14" text-anchor="end" font-size="10.5" font-weight="600" fill="#8593A8">${MAT[S.mat].label} · τu ${Math.round(tauOf(S.mat))} MPa</text>`);
   $("draw").innerHTML=g.join("");
 }
@@ -923,14 +962,36 @@ function drawSection(){
    슬라이더
    ══════════════════════════════════════════════════════════ */
 const leMax=()=>P&&!P.err?Math.max(P.d*3.2,8):16;
+
+/* ── 슬라이더 조정 대상 ──────────────────────────────────
+   L = 머리 + 체결 두께 + Le 관계라 셋 중 둘을 정하면 나머지가 따라온다.
+   기본은 Le를 밀고 체결 두께가 유도되는 쪽, 길이 모드는 그 반대다. */
+const headHOf =()=>(P&&!P.err&&HEAD[S.head].cone)?cskHead(P.d):0;
+const lenMode =()=>S.smode==="len"&&!!P&&!P.err&&P.len!=null&&S.grip>0;
+const snapLen =v=>BOLT_LEN.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
+/* 사양 문자열을 다시 쓰되 비표준 피치와 머리 표기는 보존한다 */
+function specWithLen(len){
+  const h=S.head!=="std"?" "+HEAD[S.head].label.replace(" CS",""):"";
+  const pit=(P.pitch!==PITCH[P.d])?"x"+P.pitch:"";
+  return "M"+P.d+pit+h+"-"+len;
+}
+function setBoltLen(v){
+  const L=snapLen(v);
+  if(P.len===L)return false;             // 스냅 결과가 같으면 갱신할 것이 없다
+  S.spec=specWithLen(L); $("spec").value=S.spec;
+  return true;
+}
 function updateSlider(){
   if(!R)return;
+  /* 길이 모드는 Le 축을 (머리 + 체결 두께)만큼 평행이동한 것뿐이라
+     눈금 배치는 두 모드가 동일하다. 다른 건 라벨과 스냅 여부다. */
+  const lm=lenMode();
   const max=leMax(), t=$("track"), w=t.clientWidth||300;
   const at=v=>Math.max(0,Math.min(1,v/max))*w;
   const px=at(R.hasLe?R.Le:R.LeOk);
   $("thumb").style.left=px+"px";
-  $("thumb").classList.toggle("ghost",!R.hasLe);
-  $("fill").style.width=(R.hasLe?px:0)+"px";
+  $("thumb").classList.toggle("ghost",!lm&&!R.hasLe);
+  $("fill").style.width=((lm||R.hasLe)?px:0)+"px";
 
   const pMin=at(R.LeMin), pOk=at(R.LeOk);
   $("tickMin").style.left=pMin+"px";
@@ -941,25 +1002,34 @@ function updateSlider(){
   $("lblOk").style.left=clamp(pOk,32)+"px";
   /* 두 라벨이 겹치면 '최소'를 숨긴다 */
   $("lblMin").classList.toggle("hide",Math.abs(pOk-pMin)<58);
-  /* Le만으로는 적합해질 수 없으면 기준선을 흐리고 문구를 바꾼다 */
-  $("lblOk").textContent=R.okPossible?"적합 기준":"Le 기준";
+  /* 슬라이더만으로는 적합해질 수 없으면 기준선을 흐리고 문구를 바꾼다 */
+  $("lblOk").textContent=R.okPossible?"적합 기준":(lm?"길이 기준":"Le 기준");
   $("lblOk").classList.toggle("blocked",!R.okPossible);
   $("tickOk").classList.toggle("blocked",!R.okPossible);
 
-  t.setAttribute("aria-valuenow",R.hasLe?f1(R.Le):0);
+  t.setAttribute("aria-label",lm?"볼트 길이":"유효 물림 깊이");
+  t.setAttribute("aria-valuenow",lm?P.len:(R.hasLe?f1(R.Le):0));
   t.setAttribute("aria-valuemax",f1(max));
-  t.setAttribute("aria-valuetext",R.hasLe
-    ?f1(R.Le)+"mm, "+R.threads.toFixed(1)+"산, 판정 "+R.tag
-    :"미설정, 적합 기준 "+f1(R.LeOk)+"mm");
+  t.setAttribute("aria-valuetext",lm
+    ?P.len+"mm, 물림 "+f1(R.Le)+"mm, 판정 "+R.tag
+    :R.hasLe
+      ?f1(R.Le)+"mm, "+R.threads.toFixed(1)+"산, 판정 "+R.tag
+      :"미설정, 적합 기준 "+f1(R.LeOk)+"mm");
 }
 (function slider(){
   const t=$("track"); let drag=false,pid=null;
-  const val=x=>{const r=t.getBoundingClientRect();
-    return Math.round(Math.max(0,Math.min(1,(x-r.left)/r.width))*leMax()*10)/10;};
+  const frac=x=>{const r=t.getBoundingClientRect();
+    return Math.max(0,Math.min(1,(x-r.left)/r.width));};
   const set=(x,haptic)=>{
-    const v=Math.max(.1,val(x));
     const wasOk=R&&R.lvl==="ok";
-    S.Le=v; render(true);
+    if(lenMode()){
+      /* 길이 모드 — 트랙 위치는 Le를 뜻하고, 거기에 (머리 + 체결 두께)를
+         더한 길이를 표준 치수로 스냅한다. 같은 칸이면 다시 그릴 것이 없다. */
+      if(!setBoltLen(S.grip+headHOf()+frac(x)*leMax()))return;
+      render(true);
+    }else{
+      S.Le=Math.max(.1,Math.round(frac(x)*leMax()*10)/10); render(true);
+    }
     const nowOk=R&&R.lvl==="ok";
     if(haptic&&lastSide!==null&&nowOk!==wasOk){
       const th=$("thumb"); th.classList.add("pulse");
@@ -991,6 +1061,12 @@ function updateSlider(){
   };
   window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
   t.addEventListener("keydown",e=>{
+    if(lenMode()){                        // 길이 모드는 표준 길이 한 칸씩
+      const i=BOLT_LEN.indexOf(snapLen(P.len));
+      if(e.key==="ArrowRight"||e.key==="ArrowUp"){setBoltLen(BOLT_LEN[Math.min(BOLT_LEN.length-1,i+1)]);render();e.preventDefault();}
+      if(e.key==="ArrowLeft"||e.key==="ArrowDown"){setBoltLen(BOLT_LEN[Math.max(0,i-1)]);render();e.preventDefault();}
+      return;
+    }
     const st=P&&!P.err?Math.max(.1,Math.round(P.d)/10):.5;
     if(e.key==="ArrowRight"||e.key==="ArrowUp"){S.Le=Math.round((S.Le+st)*10)/10;render();e.preventDefault();}
     if(e.key==="ArrowLeft"||e.key==="ArrowDown"){S.Le=Math.max(0,Math.round((S.Le-st)*10)/10);render();e.preventDefault();}
@@ -1295,6 +1371,10 @@ $("shank").addEventListener("input",e=>{
   render();
 });
 $("shankClr").onclick=()=>{S.shank=0;$("shank").value="";render();};
+$("grip").addEventListener("input",e=>{
+  S.grip=Math.max(0,parseFloat(e.target.value)||0);
+  render();
+});
 
 const bar=$("bar");
 addEventListener("scroll",()=>bar.classList.toggle("stuck",scrollY>4),{passive:true});
