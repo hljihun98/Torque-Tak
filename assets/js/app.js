@@ -8,6 +8,14 @@ const PITCH={1.6:.35,2:.4,2.5:.45,3:.5,4:.7,5:.8,6:1,8:1.25,10:1.5,12:1.75,14:2,
 const SIZES=[3,4,5,6,8,10,12];
 /* ISO 4762 육각홀붙이 머리 지름 (mm) */
 const DHEAD={3:5.5,4:7,5:8.5,6:10,8:13,10:16,12:18,14:21,16:24,20:30,24:36};
+/* ISO 10642 접시머리 높이 k (mm) — 접시는 호칭 길이가 머리를 포함한 전장이라
+   머리 밑 유효 길이를 구하려면 이 값을 빼야 한다. M3~M12는 정확히 0.62d. */
+const CSK_K={3:1.86,4:2.48,5:3.1,6:3.72,8:4.96,10:6.2,12:7.44,14:8.4,16:8.8,20:10.16};
+function cskHead(d){
+  if(CSK_K[d])return CSK_K[d];
+  const k=Object.keys(CSK_K).map(Number).sort((a,b)=>Math.abs(a-d)-Math.abs(b-d))[0];
+  return CSK_K[k]*d/k;
+}
 
 /* ══════════════════════════════════════════════════════════
    볼트 강도구분  su/sy [MPa]
@@ -44,18 +52,19 @@ const HEAD={
    shear : 전단강도 보정 (기본 0.6·su)
    thin  : 박판 여부 (모델 적용 범위 밖 경고)
    ══════════════════════════════════════════════════════════ */
-/* act: 혐기성 고정제 경화 활성도  1=활성(철계) 0.5=비활성(프라이머 필요) 0=금속 아님 */
+/* act: 혐기성 고정제 경화 활성도  1=활성(철계) 0.5=비활성(프라이머 필요) 0=금속 아님
+   E  : 종탄성계수 [MPa] — 컴플라이언스(이완 손실·하중계수) 계산용 대표값 */
 const MAT={
-  S45C  :{su:570,pG:700,act:1,  label:"S45C",    desc:"기계구조용 탄소강"},
-  SCM440:{su:980,pG:900,act:1,  label:"SCM440",  desc:"크롬몰리브덴강"},
-  SS400 :{su:400,pG:490,act:1,  label:"SS400",   desc:"일반 구조용 압연강"},
-  SPCC  :{su:270,pG:260,act:1,  label:"SPCC",    desc:"냉간압연 강판",thin:true},
-  SUS304:{su:520,pG:630,act:.5, label:"SUS304",  desc:"스테인리스"},
-  A6061 :{su:310,pG:300,act:.5, label:"A6061-T6",desc:"알루미늄 압출",alu:true},
-  A5052 :{su:230,pG:210,act:.5, label:"A5052",   desc:"알루미늄 판",alu:true},
-  ADC12 :{su:228,pG:200,act:.5, label:"ADC12",   desc:"알루미늄 다이캐스팅",alu:true},
-  FC250 :{su:250,pG:700,act:1,  label:"FC250",   desc:"회주철",shear:1.1},
-  POM   :{su:65, pG:60, act:0,  label:"POM",     desc:"엔지니어링 플라스틱"}
+  S45C  :{su:570,pG:700,act:1,  E:205000,label:"S45C",    desc:"기계구조용 탄소강"},
+  SCM440:{su:980,pG:900,act:1,  E:205000,label:"SCM440",  desc:"크롬몰리브덴강"},
+  SS400 :{su:400,pG:490,act:1,  E:205000,label:"SS400",   desc:"일반 구조용 압연강"},
+  SPCC  :{su:270,pG:260,act:1,  E:205000,label:"SPCC",    desc:"냉간압연 강판",thin:true},
+  SUS304:{su:520,pG:630,act:.5, E:193000,label:"SUS304",  desc:"스테인리스"},
+  A6061 :{su:310,pG:300,act:.5, E:69000, label:"A6061-T6",desc:"알루미늄 압출",alu:true},
+  A5052 :{su:230,pG:210,act:.5, E:70000, label:"A5052",   desc:"알루미늄 판",alu:true},
+  ADC12 :{su:228,pG:200,act:.5, E:71000, label:"ADC12",   desc:"알루미늄 다이캐스팅",alu:true},
+  FC250 :{su:250,pG:700,act:1,  E:100000,label:"FC250",   desc:"회주철",shear:1.1},
+  POM   :{su:65, pG:60, act:0,  E:2800,  label:"POM",     desc:"엔지니어링 플라스틱"}
 };
 /* 한계 면압 pG를 VDI 2230 수록 재질과 직접 대응시킬 수 있는 것만 표준 근거로 표기한다.
    나머지(스테인리스·강판·알루미늄·수지)는 문헌 외삽이라 원표 대조가 필요하다. */
@@ -122,6 +131,13 @@ const LOAD_SEG=[
   {v:"axial", label:"축방향 인장"},
   {v:"shear", label:"횡방향 전단"}
 ];
+/* 비나사부를 입력했을 때 어디까지 모델에 반영할지 — 누적 단계 */
+const SLV_SEG=[
+  {v:"geo",  label:"기하만",   desc:"런아웃·나사부 길이만 검사. 계산값은 안 바뀝니다"},
+  {v:"embed",label:"이완 손실", desc:"이완 손실 10% 고정을 탄성 계산으로 대체"},
+  {v:"phi",  label:"하중 계수", desc:"외력 중 볼트가 실제로 부담하는 몫까지 반영"}
+];
+const SLV_RANK={geo:0,embed:1,phi:2};
 
 /* ══════════════════════════════════════════════════════════
    모델 상수 — 출처와 성격을 명시
@@ -152,13 +168,24 @@ const FIX={
          "수지 전용 셀프태핑 스크류나 인서트 너트(열압입·초음파)를 쓴다"],
   load :["볼트 호칭경을 한 단계 올리거나 체결 개수를 늘린다",
          "목표 축력·강도구분을 올려 이완 후 잔존 축력을 확보한다",
-         "마찰 전달 대신 핀·키·숄더로 전단하중을 직접 받게 한다"]
+         "마찰 전달 대신 핀·키·숄더로 전단하중을 직접 받게 한다"],
+  runout:["볼트 길이를 줄여 비나사부가 체결 두께 안에 들어오게 한다",
+          "전산(전조 나사) 볼트로 바꿔 비나사부를 없앤다",
+          "스페이서·칼라를 넣어 체결 두께를 비나사부보다 크게 만든다",
+          "탭 구멍 입구를 카운터보어로 확장해 샹크가 들어갈 자리를 만든다"],
+  thlen :["나사부가 더 긴 볼트(전산 볼트)로 바꾼다",
+          "물림 깊이 Le를 볼트의 실제 나사부 길이 안으로 줄인다",
+          "볼트 길이를 늘려 나사부 길이를 확보한다"]
 };
 
 const EMBED    = 0.10;  // 임베딩/이완 손실 10%
 const MU_JOINT = 0.15;  // 마찰 전달 접합면 마찰계수
 const SF_AXIAL = 1.5;   // 축하중 분리 방지 안전율
 const SF_SHEAR = 1.3;   // 횡하중 미끄럼 방지 안전율
+const E_BOLT   = 205000;// 볼트 종탄성계수 [MPa] — 강재
+const FZ_UM    = 5.0;   // 소성 임베딩량 [µm] — VDI 2230 Table 5.4 계열 중간값 (원표 대조 필요)
+const FZ_UM_W  = 1.5;   // 와셔를 넣으면 접합면이 하나 늘어난다
+const SF_SEP   = 1.5;   // 접합면 분리 방지 안전율 — 하중계수 모델에서 사용
 
 const stressArea=(d,p)=>{const x=d-0.938194*p;return PI/4*x*x;};
 const tauOf=m=>MAT[m].su*0.6*(MAT[m].shear||1);
@@ -223,12 +250,54 @@ function compute(o,_probe){
     pRatio= pBear/M.pG;
   }
 
+  /* ── 비나사부 · 탄성 컴플라이언스 ──────────────────────
+     볼트 길이에서 머리(접시만)와 물림 Le를 빼면 체결 두께 Lk가 나온다.
+     비나사부 ls까지 알면 볼트를 구간별로 나눠 컴플라이언스를 쌓을 수 있고,
+     그러면 이완 손실을 고정 비율이 아니라 변위 f_Z에서 직접 구할 수 있다. */
+  const AN   = PI/4*d*d;                       // 비나사부(전경) 단면적
+  const dRoot= d-1.226869*p, Ad3=PI/4*dRoot*dRoot;
+  const headH= H.cone?cskHead(d):0;            // 접시는 호칭 길이에 머리가 포함된다
+  const Lu   = (o.len!=null&&o.len>0) ? o.len-headH : null;   // 머리 밑 유효 길이
+  const Lk   = (Lu!=null&&hasLe) ? Lu-o.Le : null;            // 체결 두께(그립)
+  const ls   = Math.max(0,o.shank||0);
+  const slv  = SLV_RANK[o.slevel]!=null ? o.slevel : "embed";
+  const shankOn = ls>0 && Lk!=null && Lk>0;
+  const lg   = shankOn ? Math.max(0,Lk-Math.min(ls,Lk)) : null;
+
+  let dS=null,dP=null,phi=null,Fz=null,embedCalc=null,turnDeg=null;
+  if(shankOn){
+    /* 볼트 컴플라이언스 — VDI 2230 Part 1 구간 분해 */
+    const dSK = 0.5*d/(E_BOLT*AN);                      // 머리
+    const d1  = Math.min(ls,Lk)/(E_BOLT*AN);            // 비나사부
+    const dGew= lg/(E_BOLT*Ad3);                        // 그립 안 미물림 나사부
+    const dGM = 0.5*d/(E_BOLT*Ad3)+0.4*d/(M.E*AN);      // 물림 나사부 + 탭 모재
+    dS = dSK+d1+dGew+dGM;
+    /* 부재 컴플라이언스 — Rötscher 30° 압축 원추 (Shigley).
+       탭 조인트라 유효 그립에 d/2를 더하고 같은 원추 2개 직렬로 본다. */
+    const dw=Db||1.65*d, t=(Lk+d/2)/2;
+    const num=(1.155*t+dw-d)*(dw+d), den=(1.155*t+dw+d)*(dw-d);
+    if(dw>d*1.02 && den>0 && num/den>1){
+      dP = 2*Math.log(num/den)/(0.5774*PI*M.E*d);       // 원추 2개 직렬
+      const fZ=(FZ_UM+(washer!=="none"?FZ_UM_W:0))/1000;
+      Fz = fZ/(dS+dP);
+      embedCalc = Math.min(0.5,Fz/Feff);
+      phi = dP/(dS+dP);                                 // 하중계수 (도입계수 n=1 보수)
+      /* 각도법 참고값 — 밀착 후 필요한 회전각.
+         볼트 신장 + 부재 압축을 모두 감아야 하고, 샹크 비틀림만큼 더 돌아간다. */
+      const Ip=PI*Math.pow(d,4)/32;
+      turnDeg = Feff*(dS+dP)/p*360 + TG_FRAC*(K*Feff*d)*ls/(79000*Ip)*180/PI;
+    }
+  }
+  const useEmbed = shankOn && embedCalc!=null && SLV_RANK[slv]>=1;
+  const usePhi   = shankOn && phi!=null && SLV_RANK[slv]>=2;
+  const embedUse = useEmbed ? embedCalc : EMBED;
+
   /* ── 나사 고정제 · 제거 토크 ─────────────────────────
      T_제거 = 잔존 축력에 의한 마찰분 + 고정제 이탈분
      마찰분: 풀 때는 피치 성분이 반대로 작용 → (K·d − p/2π)
      고정제분: TDS M10 값 × 호칭경 보정 × (실제 물림 / 표준 너트 높이) */
   const L = LOCK[o.lock||"none"];
-  const Fserv0 = Feff*(1-EMBED);
+  const Fserv0 = Feff*(1-embedUse);
   const Tfric = Fserv0*(K*d - p/(2*PI))/1000;
   let Tadh=0, Trem=null, remRatio=null;
   if(L.bk>0){
@@ -239,9 +308,16 @@ function compute(o,_probe){
 
   /* 하중 대비 축력 */
   const Fserv = Fserv0;                // 이완 후 잔존 축력
-  let Freq=null;
+  let Freq=null, Fsa=null, sigMax=null;
   if(o.loadType!=="none" && o.load>0){
-    Freq = o.loadType==="axial" ? SF_AXIAL*o.load : SF_SHEAR*o.load/MU_JOINT;
+    if(o.loadType==="axial"){
+      /* 하중계수를 쓰면 외력의 (1−Φ)만 접합면 클램프력을 깎는다.
+         전량을 축력으로 막게 하는 기존 식보다 현실적이다. */
+      Freq = usePhi ? SF_SEP*(1-phi)*o.load : SF_AXIAL*o.load;
+      if(usePhi){ Fsa = phi*o.load; sigMax = (Fserv+Fsa)/As; }
+    }else{
+      Freq = SF_SHEAR*o.load/MU_JOINT;   // 횡하중은 외력이 축방향이 아니라 Φ 무관
+    }
   }
 
   if(Trem!==null) remRatio = Trem/Tbreak;
@@ -277,6 +353,33 @@ function compute(o,_probe){
   else if(threads<4) add("bad","유효 나사산 수","4산 미만 — 구조 안전 기준 미달",threads.toFixed(1)+"산","str",FIX.strip);
   else if(threads<6) add("warn","유효 나사산 수","6산 확보 권장",threads.toFixed(1)+"산");
   else add("ok","유효 나사산 수","6산 이상 확보",threads.toFixed(1)+"산");
+
+  /* 비나사부 기하 — 입력했을 때만. 해석 수준과 무관하게 항상 검사한다 */
+  if(ls>0){
+    if(Lu==null) add("na","나사 런아웃","볼트 길이를 입력하면 검토합니다","—");
+    else if(!hasLe) add("na","나사 런아웃","Le를 설정하면 검토합니다","—");
+    else if(Lk<=0)
+      add("bad","나사 런아웃","물림 "+o.Le.toFixed(1)+" mm가 머리 밑 길이 "+Lu.toFixed(1)+" mm보다 깁니다 — 사양을 확인하세요",
+          "체결 두께 0","str",FIX.thlen);
+    else{
+      /* 실물 볼트는 샹크와 완전나사부 사이에 불완전 나사부가 1~2피치 있다 */
+      const lsEff=ls+2*p, slack=Lk-lsEff;
+      if(slack<0)
+        add("bad","나사 런아웃","비나사부 "+lsEff.toFixed(1)+" mm(불완전 나사 2피치 포함) > 체결 두께 "+Lk.toFixed(1)
+            +" mm — 샹크가 탭 면에 먼저 닿아 축력이 생기지 않습니다","+"+(-slack).toFixed(1)+" mm","str",FIX.runout);
+      else if(slack<Lk*0.1)
+        add("warn","나사 런아웃","체결 두께에 근접 — 공차에 따라 샹크가 먼저 닿을 수 있습니다",slack.toFixed(1)+" mm 여유");
+      else
+        add("ok","나사 런아웃","샹크가 체결 두께 안에 들어옵니다",slack.toFixed(1)+" mm 여유");
+
+      const thAvail=Lu-ls;                       // 볼트에 실제로 있는 나사부 길이
+      if(o.Le>thAvail)
+        add("bad","볼트 나사부 길이","물림 "+o.Le.toFixed(1)+" mm > 볼트 나사부 "+thAvail.toFixed(1)
+            +" mm — 없는 나사산을 가정하고 있습니다",thAvail.toFixed(1)+" mm","str",FIX.thlen);
+      else
+        add("ok","볼트 나사부 길이","나사부 "+thAvail.toFixed(1)+" mm 중 "+o.Le.toFixed(1)+" mm 물림",thAvail.toFixed(1)+" mm");
+    }
+  }
 
   if(thinRegime)
     add("bad","모델 적용 범위","박판·소수 나사산 — 판재 함몰/찢김이 지배. 이 계산은 근거가 되지 못합니다","범위 밖","str",FIX.thin);
@@ -322,8 +425,19 @@ function compute(o,_probe){
 
   if(Freq===null) add("na","작용 하중 대비","하중을 입력하면 필요 축력을 검토합니다","—");
   else if(Fserv<Freq) add("bad","작용 하중 대비","이완 후 잔존 축력 "+Math.round(Fserv).toLocaleString()+" N < 필요 "+Math.round(Freq).toLocaleString()+" N — 축력 부족",(Fserv/Freq).toFixed(2)+"배","str",FIX.load);
-  else if(Fserv<Freq*1.2) add("warn","작용 하중 대비","필요 축력을 겨우 만족",(Fserv/Freq).toFixed(2)+"배");
-  else add("ok","작용 하중 대비","필요 "+Math.round(Freq).toLocaleString()+" N 대비 충분",(Fserv/Freq).toFixed(2)+"배");
+  else if(Fserv<Freq*1.2) add("warn","작용 하중 대비","필요 축력을 겨우 만족"+(usePhi?" (하중계수 반영)":""),(Fserv/Freq).toFixed(2)+"배");
+  else add("ok","작용 하중 대비","필요 "+Math.round(Freq).toLocaleString()+" N 대비 충분"
+      +(usePhi?" — 외력의 "+((1-phi)*100).toFixed(0)+"%만 클램프력을 깎습니다":""),(Fserv/Freq).toFixed(2)+"배");
+
+  /* 하중계수 수준에서만 — 외력 분담분까지 더한 볼트 응력 */
+  if(usePhi&&sigMax!=null){
+    const r=sigMax/C.sy;
+    if(r>1.0) add("bad","외력 포함 볼트 응력","잔존 축력 + 외력 분담 "+Math.round(Fsa).toLocaleString()+" N이 항복 초과",
+        (r*100).toFixed(0)+"%","str",FIX.load);
+    else if(r>0.9) add("warn","외력 포함 볼트 응력","항복에 근접 — 여유가 없습니다",(r*100).toFixed(0)+"%");
+    else add("ok","외력 포함 볼트 응력","외력 중 볼트 분담 "+Math.round(Fsa).toLocaleString()+" N (Φ "+(phi*100).toFixed(0)+"%)",
+        (r*100).toFixed(0)+"%");
+  }
 
   /* ── 종합 판정 ─────────────────────────────────────────── */
   /* Le를 기준선까지 올렸을 때 실제로 적합해지는지 직접 계산해 확인.
@@ -360,6 +474,8 @@ function compute(o,_probe){
          Fstrip,Ats,LeMin,LeOk,okPossible,threads,margin,limited,hasLe,Le:o.Le,
          L,Tfric,Tadh,Trem,remRatio,
          Trec,Tbreak,sigma,tau,sigEq,util,Db,pBear,pRatio,
+         headH,Lu,Lk,ls,lg,slv,shankOn,dS,dP,phi,Fz,
+         embedCalc,embedUse,useEmbed,usePhi,turnDeg,Fsa,sigMax,len:o.len,
          checks,lvl,tag,txt,nBad,nWarn,thinRegime,loadType:o.loadType,load:o.load};
 }
 
@@ -442,7 +558,8 @@ const sig3=n=>{ if(!isFinite(n))return"—";
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",lock:"none",
-         preload:70,Le:0,loadType:"none",load:0,headAuto:true};
+         preload:70,Le:0,loadType:"none",load:0,headAuto:true,
+         shank:0,slevel:"embed"};   // shank 0 = 비나사부 미고려
 let R=null,P=null,lastDigits="",lastSide=null;
 
 const IC={
@@ -474,7 +591,8 @@ function render(fast){
   if(S.headAuto&&P.head)S.head=P.head;
 
   R=compute({d:P.d,pitch:P.pitch,cls:S.cls,head:S.head,mat:S.mat,k:S.k,washer:S.washer,lock:S.lock,
-             preload:S.preload,Le:S.Le,loadType:S.loadType,load:S.load});
+             preload:S.preload,Le:S.Le,loadType:S.loadType,load:S.load,
+             len:P.len,shank:S.shank,slevel:S.slevel});
 
   if(!fast){
     const chip=(t,c)=>{const e=document.createElement("span");e.className="pill"+(c?" "+c:"");e.textContent=t;pr.appendChild(e);};
@@ -483,7 +601,10 @@ function render(fast){
     chip(R.H.label);
     chip(R.cls+(R.capped?" (규격 상한)":""),R.capped?"w":"");
     if(S.washer!=="none")chip("와셔 "+WASHER[S.washer].label);
-    chip(P.len!=null?"길이 "+P.len+" · 토크 무관":"길이 미지정","mute");
+    /* 비나사부를 넣으면 길이가 그립 계산에 실제로 쓰인다 */
+    chip(P.len==null?"길이 미지정"
+        :R.shankOn?"길이 "+P.len+" · 그립 "+R.Lk.toFixed(1)+" mm"
+        :"길이 "+P.len+" · 토크 무관", R.shankOn?"b":"mute");
     P.assumed.forEach(t=>chip(t,"w"));
   }
 
@@ -521,7 +642,29 @@ function render(fast){
   $("vWasher").textContent=WASHER[S.washer].label;
   $("vLock").textContent=LOCK[S.lock].label;
   $("loadClr").hidden=S.loadType==="none";
+  updateShankUI();
   writeBasis(); fillMeas();
+}
+
+/* 비나사부 블록 — 입력이 있을 때만 해석 수준을 노출하고, 왜 못 쓰는지도 알려준다 */
+function updateShankUI(){
+  const on=S.shank>0;
+  const was=$("slvWrap").hidden;
+  $("shankClr").hidden=!on;
+  $("slvWrap").hidden=!on;
+  if(!on)return;
+  /* 숨은 동안은 폭이 0이라 인디케이터가 못 잡힌다 — 펼친 직후 다시 재보정 */
+  if(was)buildSegs();
+  const desc=SLV_SEG.find(o=>o.v===S.slevel);
+  let note=desc?desc.desc:"";
+  if(R){
+    if(R.len==null) note="볼트 길이를 입력해야 체결 두께를 알 수 있습니다 — 예: M5-12";
+    else if(!R.hasLe) note="물림 깊이 Le를 설정해야 체결 두께를 알 수 있습니다";
+    else if(!R.shankOn) note="체결 두께가 0 이하입니다 — 길이와 Le를 확인하세요";
+    else if(SLV_RANK[S.slevel]>=1&&!R.useEmbed) note="좌면 지름을 모르는 형상이라 부재 강성을 못 구합니다 — 기하 검사만 적용됩니다";
+    else if(R.useEmbed) note=desc.desc+" · 현재 이완 손실 "+(R.embedUse*100).toFixed(1)+"% (고정값 10% 대신)";
+  }
+  $("slvDesc").textContent=note;
 }
 
 function setState(lvl){
@@ -668,6 +811,9 @@ function buildSegs(){
   seg("segLoad","indLoad",LOAD_SEG.map(o=>o.v),S.loadType,
       v=>LOAD_SEG.find(o=>o.v===v).label,
       v=>{S.loadType=v; if(v==="none"){S.load=0;$("load").value="";} render();});
+  seg("segSlv","indSlv",SLV_SEG.map(o=>o.v),S.slevel,
+      v=>SLV_SEG.find(o=>o.v===v).label,
+      v=>{S.slevel=v;render();});
 }
 function seg(id,indId,items,cur,lbl,cb){
   const el=$(id);
@@ -716,6 +862,21 @@ function drawSection(){
   g.push(`<rect x="${plateL}" y="${cy-rMaj-2.5}" width="${blkL-plateL}" height="${rMaj*2+5}" fill="#F8FAFB"/>`);
   /* 볼트 몸통 */
   g.push(`<rect x="${headR}" y="${cy-rMaj}" width="${blkL-headR+eng}" height="${rMaj*2}" rx="2.5" fill="#BCCDE6"/>`);
+  /* 비나사부 — 그립 폭은 고정이고, 그 안에서 샹크가 차지하는 비율을 보여준다.
+     비율이 1을 넘으면 샹크가 탭 면을 파고드는 상태(런아웃)다. */
+  if(R.shankOn){
+    const gw=blkL-plateL, lsEff=R.ls+2*R.p, fr=lsEff/R.Lk, over=fr>1;
+    const inW=gw*Math.min(1,fr);
+    g.push(`<rect x="${plateL}" y="${cy-rMaj}" width="${inW.toFixed(1)}" height="${rMaj*2}" fill="#8FA6C4"/>`);
+    if(over){
+      const ow=Math.min(gw*(fr-1),eng);
+      g.push(`<rect x="${blkL}" y="${cy-rMaj}" width="${ow.toFixed(1)}" height="${rMaj*2}" fill="#D92D20" opacity=".5"/>`);
+      /* 위는 물림 산수·좌면 압괴 라벨이, 아래 dy부터는 치수선이 쓴다. 그 사이 왼쪽이 빈다. */
+      g.push(`<text x="${plateL}" y="${(cy+bh+11).toFixed(1)}" font-size="9.5" font-weight="700" fill="#D92D20">샹크 간섭</text>`);
+    }
+    const sx=plateL+inW;
+    g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?"#D92D20":"#5E7290"}" stroke-width="1.6"/>`);
+  }
   /* 와셔 */
   if(wOn) g.push(`<rect x="${plateL-wThk}" y="${cy-wRad}" width="${wThk}" height="${wRad*2}" rx="1.5" fill="#8FA6C4"/>`);
   /* 머리 */
@@ -854,6 +1015,8 @@ const SRC={
   jis    :{t:1,label:"JIS · KS 재료규격", note:"모재 인장강도 (G4051 · G3101 · G5501 등)"},
   vdi    :{t:2,label:"VDI 2230",        note:"볼트 체결 설계 지침"},
   nutf   :{t:3,label:"nut-factor 관행",  note:"Bickford · Bossard · Bolt Science 계열 K값 — 규격 아님"},
+  roet   :{t:3,label:"Rötscher 원추",    note:"부재 강성 30° 압축 원추 모델 (Shigley) — VDI의 대체 원통식과 다름"},
+  iso10642:{t:1,label:"ISO 10642",      note:"접시머리 높이 — 호칭 길이에서 빼는 값"},
   tds    :{t:3,label:"Henkel TDS",      note:"LOCTITE 제품 데이터시트 (ISO 10964 시험)"},
   own    :{t:4,label:"자체 경험값",      note:"규격 근거 없음 — 실물 시험으로 재교정 필요"}
 };
@@ -870,14 +1033,15 @@ const srcTag=(...keys)=>`<span class="srcs">`+keys.map(k=>{
 
 function writeBasis(){
   if(!R)return;
-  const b=[];
-  b.push(`<span class="st">1 · 볼트 유효단면적</span>As = π/4 × (${R.d} − 0.938194 × ${R.p})² = <b>${f2(R.As)} mm²</b>`
+  /* 비나사부 단계가 조건부로 끼어들므로 번호를 고정하지 않고 순서대로 매긴다 */
+  const b=[]; let _n=0; const sn=()=>++_n;
+  b.push(`<span class="st">${sn()} · 볼트 유효단면적</span>As = π/4 × (${R.d} − 0.938194 × ${R.p})² = <b>${f2(R.As)} mm²</b>`
     +`<br><span class="mut">0.938194는 유효경 d₂와 골지름 d₃의 평균 계수 — 나사 기본 산형에서 유도됩니다</span>`
     +srcTag("iso898","iso261"));
-  b.push(`<span class="st">2 · 강도구분 ${R.cls}</span>σy ${R.C.sy} MPa · σu ${R.C.su} MPa`
+  b.push(`<span class="st">${sn()} · 강도구분 ${R.cls}</span>σy ${R.C.sy} MPa · σu ${R.C.su} MPa`
     +(R.capped?`<br><span class="wr">${R.H.label} 규격 상한으로 ${S.cls} → ${R.cls} 하향</span>`:"")
     +srcTag(/^A2/.test(R.cls)?"iso3506":"iso898"));
-  let s3=`<span class="st">3 · 축력</span>목표 = ${S.preload}% × ${f2(R.As)} × ${R.C.sy} = ${f0(R.Fwant)} N`;
+  let s3=`<span class="st">${sn()} · 축력</span>목표 = ${S.preload}% × ${f2(R.As)} × ${R.C.sy} = ${f0(R.Fwant)} N`;
   if(R.H.f<1) s3+=`<br>머리 형상 계수 ×${R.H.f.toFixed(2)} → ${f0(R.Fhead)} N <span class="mut">(경험 근사값)</span>`;
   if(R.limited) s3+=`<br><span class="bad">뽑힘 안전율 ${STRIP_SF.toFixed(1)} 확보를 위해 <b>${f0(R.Feff)} N</b>으로 하향 제한</span>`;
   else s3+=`<br>적용 축력 <b>${f0(R.Feff)} N</b>`;
@@ -886,12 +1050,12 @@ function writeBasis(){
      +`목표 축력 비율·머리 형상 계수·뽑힘 안전율 ${STRIP_SF.toFixed(1)}은 규격이 아니라 자체 설정값입니다.</span>`
      +srcTag("vdi","own");
   b.push(s3);
-  b.push(`<span class="st">4 · 체결토크</span>T = ${R.K} × ${f0(R.Feff)} × ${R.d} = <b>${sig3(R.Trec)} N·m</b>`
+  b.push(`<span class="st">${sn()} · 체결토크</span>T = ${R.K} × ${f0(R.Feff)} × ${R.d} = <b>${sig3(R.Trec)} N·m</b>`
     +`<br><span class="mut">K는 나사부 마찰·좌면 마찰·피치 성분을 하나로 묶은 계수입니다. `
     +`VDI 2230은 이걸 M = F[0.16P + 0.58·d₂·μG + (D_Km/2)·μK]로 분리해 다루며, `
     +`<b>T = K·F·d는 규격이 아니라 업계 관행식</b>입니다.</span>`
     +srcTag("nutf"));
-  b.push(`<span class="st">5 · 체결 중 조합응력</span>인장 σ = ${R.sigma.toFixed(0)} MPa · 비틀림 τ = ${R.tau.toFixed(0)} MPa<br>`
+  b.push(`<span class="st">${sn()} · 체결 중 조합응력</span>인장 σ = ${R.sigma.toFixed(0)} MPa · 비틀림 τ = ${R.tau.toFixed(0)} MPa<br>`
     +`σeq = √(σ² + 3(0.5τ)²) = <b>${R.sigEq.toFixed(0)} MPa</b> = 항복의 `
     +`<span class="${R.util>1?"bad":R.util>0.92?"wr":"good"}">${(R.util*100).toFixed(0)}%</span>`
     +`<br><span class="mut">등가응력식과 비틀림 감소계수 ${K_TAU}는 VDI 2230. `
@@ -899,7 +1063,7 @@ function writeBasis(){
     +`단, 단면계수는 골지름 d₃ 기준이라 VDI의 응력지름 기준보다 τ가 약 15~20% 크게 — 보수적으로 나옵니다.</span>`
     +srcTag("vdi","iso261"));
   if(R.hasLe){
-    b.push(`<span class="st">6 · 나사산 뽑힘</span>모재 ${R.M.label} · τu = 0.6 × ${R.M.su} = ${Math.round(tauOf(S.mat))} MPa<br>`
+    b.push(`<span class="st">${sn()} · 나사산 뽑힘</span>모재 ${R.M.label} · τu = 0.6 × ${R.M.su} = ${Math.round(tauOf(S.mat))} MPa<br>`
       +`Ats = 0.875 × π × ${R.d} × ${f1(R.Le)} × ${KNOCK} = ${f2(R.Ats)} mm²<br>`
       +`탭 내력 <b>${f0(R.Fstrip)} N</b> / 축력 ${f0(R.Fhead)} N = 여유 `
       +`<span class="${R.margin<STRIP_SF?"bad":"good"}">${f2(R.margin)}배</span>`
@@ -907,11 +1071,11 @@ function writeBasis(){
       +`<b>${KNOCK}만 자체 경험 보정</b>입니다 (문헌 0.6~0.85). τu = 0.6σu도 규격이 아닌 공학 통칙입니다.</span>`
       +srcTag("iso261","jis","own"));
   }else{
-    b.push(`<span class="st">6 · 나사산 뽑힘</span><span class="wr">Le 미설정으로 미실시.</span>`);
+    b.push(`<span class="st">${sn()} · 나사산 뽑힘</span><span class="wr">Le 미설정으로 미실시.</span>`);
   }
   if(R.Db){
     const pgStd=PG_VDI.has(S.mat);
-    b.push(`<span class="st">7 · 좌면 면압</span>좌면 지름 ${f1(R.Db)} mm${S.washer!=="none"?" (와셔 기준)":""}<br>`
+    b.push(`<span class="st">${sn()} · 좌면 면압</span>좌면 지름 ${f1(R.Db)} mm${S.washer!=="none"?" (와셔 기준)":""}<br>`
       +`p = ${f0(R.Fhi)} N ÷ 면적 = <b>${Math.round(R.pBear)} MPa</b> / 한계 ${R.M.pG} MPa `
       +`<span class="${R.pRatio>1?"bad":R.pRatio>0.85?"wr":"good"}">(${(R.pRatio*100).toFixed(0)}%)</span>`
       +`<br><span class="mut">축력 상한값으로 보수 검토. 좌면 지름은 ${S.washer!=="none"?"와셔 규격":"ISO 4762 머리 치수"} 기준.<br>`
@@ -921,22 +1085,60 @@ function writeBasis(){
       +`</span>`
       +srcTag("vdi",pgStd?"iso4762":"own"));
   }else{
-    b.push(`<span class="st">7 · 좌면 면압</span><span class="wr">${R.H.cone?"접시머리 원추 좌면 — 미검토":"좌면 형상 미정"}</span>`);
+    b.push(`<span class="st">${sn()} · 좌면 면압</span><span class="wr">${R.H.cone?"접시머리 원추 좌면 — 미검토":"좌면 형상 미정"}</span>`);
+  }
+  /* 비나사부를 입력했을 때만 — 그립 기하와 탄성 계산의 근거 */
+  if(R.ls>0){
+    let s=`<span class="st">${sn()} · 비나사부 · 체결 두께</span>`;
+    if(R.Lu==null||!R.hasLe||!R.shankOn){
+      s+=`<span class="wr">${R.Lu==null?"볼트 길이 미지정":!R.hasLe?"Le 미설정":"체결 두께 0 이하"} — 검토 불가</span>`;
+    }else{
+      s+=`체결 두께 Lk = ${R.H.cone?`(${R.len} − 머리 ${f1(R.headH)})`:R.len} − Le ${f1(R.Le)} = <b>${f1(R.Lk)} mm</b><br>`
+        +`비나사부 ${f1(R.ls)} + 불완전 나사 2p ${f1(2*R.p)} = ${f1(R.ls+2*R.p)} mm `
+        +`<span class="${R.ls+2*R.p>R.Lk?"bad":"good"}">(여유 ${f1(R.Lk-R.ls-2*R.p)} mm)</span>`;
+      if(R.dS){
+        s+=`<br>볼트 컴플라이언스 δS = <b>${(R.dS*1e6).toFixed(2)}</b> ×10⁻⁶ mm/N `
+          +`<span class="mut">(머리 + 비나사부 ${f1(Math.min(R.ls,R.Lk))} + 미물림 나사 ${f1(R.lg)} + 물림부)</span>`;
+      }
+      if(R.dP){
+        s+=`<br>부재 컴플라이언스 δP = <b>${(R.dP*1e6).toFixed(2)}</b> ×10⁻⁶ mm/N · `
+          +`하중계수 Φ = δP/(δS+δP) = <b>${(R.phi*100).toFixed(0)}%</b><br>`
+          +`이완 손실 F_Z = f_Z ${(FZ_UM+(S.washer!=="none"?FZ_UM_W:0)).toFixed(1)} µm ÷ (δS+δP) = `
+          +`<b>${f0(R.Fz)} N</b> = 축력의 ${(R.embedCalc*100).toFixed(1)}% `
+          +`<span class="mut">(고정값 ${(EMBED*100).toFixed(0)}% 대비)</span>`
+          +`<br><span class="mut">각도법 참고 — 밀착 후 필요 회전각 약 <b>${R.turnDeg.toFixed(0)}°</b> `
+          +`(볼트 신장 + 부재 압축 + 샹크 비틀림). 토크법에는 쓰이지 않는 참고값입니다.</span>`;
+      }
+      s+=`<br><span class="mut">해석 수준 <b>${SLV_SEG.find(o=>o.v===R.slv).label}</b> — `
+        +(R.useEmbed?`이완 손실에 반영 중`:`기하 검사만 반영, 이완은 ${(EMBED*100).toFixed(0)}% 고정 유지`)
+        +(R.usePhi?` · 하중계수도 반영 중`:``)+`.<br>`
+        +`δS는 VDI 2230의 구간 분해를, δP는 Rötscher 30° 압축 원추(Shigley)를 씁니다 — `
+        +`VDI의 대체 원통식은 접합면 외경 D_A에 따라 분기하므로 채택하지 않았습니다. `
+        +`f_Z ${FZ_UM} µm은 원표 대조가 필요한 가정값입니다.</span>`
+        +srcTag("vdi","roet",R.H.cone?"iso10642":"iso4762","own");
+    }
+    b.push(s);
   }
   if(R.Freq!==null){
     const need=S.loadType==="axial"
-      ? `필요 축력 = ${SF_AXIAL} × ${f0(S.load)} N`
+      ? (R.usePhi ? `필요 축력 = ${SF_SEP} × (1 − Φ ${(R.phi*100).toFixed(0)}%) × ${f0(S.load)} N`
+                  : `필요 축력 = ${SF_AXIAL} × ${f0(S.load)} N`)
       : `필요 축력 = ${SF_SHEAR} × ${f0(S.load)} ÷ μ ${MU_JOINT}`;
-    b.push(`<span class="st">8 · 작용 하중 대비</span>${need} = <b>${f0(R.Freq)} N</b><br>`
-      +`이완 후 잔존 축력 = ${f0(R.Feff)} × (1 − ${EMBED}) = ${f0(R.Fserv)} N `
+    b.push(`<span class="st">${sn()} · 작용 하중 대비</span>${need} = <b>${f0(R.Freq)} N</b><br>`
+      +`이완 후 잔존 축력 = ${f0(R.Feff)} × (1 − ${(R.embedUse*100).toFixed(1)}%) = ${f0(R.Fserv)} N `
       +`<span class="${R.Fserv<R.Freq?"bad":"good"}">(${f2(R.Fserv/R.Freq)}배)</span>`
-      +`<br><span class="mut">안전율 ${SF_AXIAL}·${SF_SHEAR}와 이완 손실 ${EMBED*100}%는 자체 설정값입니다 `
-      +`(VDI 2230은 이완을 표면거칠기·강성으로 산출합니다).`
+      +(R.usePhi?`<br>외력 중 볼트 분담 F_SA = Φ × ${f0(S.load)} = <b>${f0(R.Fsa)} N</b> → `
+        +`최대 응력 ${R.sigMax.toFixed(0)} MPa = 항복의 ${(R.sigMax/R.C.sy*100).toFixed(0)}%`:``)
+      +`<br><span class="mut">`
+      +(R.useEmbed?`이완 손실은 비나사부 기반 탄성 계산값입니다. `
+                  :`이완 손실 ${EMBED*100}%는 자체 설정값입니다 (VDI 2230은 표면거칠기·강성으로 산출). `)
+      +(R.usePhi?`분리 안전율 ${SF_SEP}은 자체 설정값이고, 하중 도입계수 n = 1로 보수 처리했습니다.`
+                :`안전율 ${SF_AXIAL}·${SF_SHEAR}는 자체 설정값입니다.`)
       +(S.loadType==="shear"?` 접합면 마찰 μ ${MU_JOINT}는 VDI 2230의 건조 강재 범위(0.10~0.15) <b>상한</b>이라 낙관적인 쪽입니다.`:"")
       +`</span>`
       +srcTag("own","vdi"));
   }
-  b.push(`<span class="st">9 · 필요 최소 물림</span>Le,min = <b>${f1(R.LeMin)} mm</b> = ${f2(R.LeMin/R.d)}d`
+  b.push(`<span class="st">${sn()} · 필요 최소 물림</span>Le,min = <b>${f1(R.LeMin)} mm</b> = ${f2(R.LeMin/R.d)}d`
     +`<br><span class="mut">6번 뽑힘 모델을 "볼트가 먼저 파단"하는 조건으로 역산한 값이라 근거 등급도 6번과 같습니다.</span>`
     +srcTag("iso261","own"));
 
@@ -1088,6 +1290,11 @@ $("load").addEventListener("input",e=>{
   render();
 });
 $("loadClr").onclick=()=>{S.loadType="none";S.load=0;$("load").value="";render();};
+$("shank").addEventListener("input",e=>{
+  S.shank=Math.max(0,parseFloat(e.target.value)||0);
+  render();
+});
+$("shankClr").onclick=()=>{S.shank=0;$("shank").value="";render();};
 
 const bar=$("bar");
 addEventListener("scroll",()=>bar.classList.toggle("stuck",scrollY>4),{passive:true});

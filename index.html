@@ -122,6 +122,20 @@
 
   <section class="card">
     <div class="seg-block">
+      <div class="lbl">비나사부 길이 (선택) — 넣으면 나사 런아웃·이완 손실까지 검토합니다</div>
+      <div class="load-in"><input id="shank" type="number" inputmode="decimal" min="0" step="0.5" placeholder="0" aria-label="비나사부 길이"><span>mm</span></div>
+      <div id="slvWrap" hidden>
+        <div class="lbl lbl-sp">해석 수준</div>
+        <div class="seg" id="segSlv"><div class="seg-ind" id="indSlv"></div></div>
+        <div class="slv-desc" id="slvDesc"></div>
+      </div>
+      <button class="load-clr" id="shankClr" hidden>비나사부 검토 해제</button>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <section class="card">
+    <div class="seg-block">
       <div class="lbl">작용 하중 (선택) — 넣으면 필요 축력까지 검토합니다</div>
       <div class="seg" id="segLoad"><div class="seg-ind" id="indLoad"></div></div>
       <div class="load-in"><input id="load" type="number" inputmode="numeric" min="0" step="10" placeholder="0" aria-label="작용 하중"><span>N</span></div>

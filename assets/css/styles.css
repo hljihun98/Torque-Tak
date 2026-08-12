@@ -237,6 +237,8 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .load-in span{font-size:14px;font-weight:600;color:var(--ink-3);flex:none}
 .load-clr{font-size:12px;font-weight:600;color:var(--brand);padding:8px 0;margin-top:6px}
+.lbl-sp{display:block;margin-top:15px}
+.slv-desc{font-size:11.5px;font-weight:500;color:var(--ink-3);line-height:1.5;margin-top:7px}
 
 .acc{margin-top:12px;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}
 .acc-h{display:flex;align-items:center;gap:9px;width:100%;padding:16px 18px;font-size:14px;font-weight:600;text-align:left}
@@ -352,6 +354,27 @@ th:last-child,td:last-child{padding-right:0}
 
 @media(min-width:560px){body{font-size:15.5px}.app{padding:0 20px}}
 
+/* ── 퀵칩: 폭이 생기면 가로 스크롤 대신 두 줄 ──────────
+   구분선을 폭 100%·높이 0으로 바꿔 줄바꿈 지점으로 쓴다 (1줄 호칭경 · 2줄 머리 형상) */
+@media(min-width:600px){
+  .quick{flex-wrap:wrap;overflow-x:visible;row-gap:8px}
+  .qdiv{width:100%;height:0;margin:0;background:none}
+  .quick-wrap .qnav,.quick-wrap.can-l .qnav-l,.quick-wrap.can-r .qnav-r{display:none}
+  .quick-wrap::before,.quick-wrap::after{content:none}
+}
+
+/* ── 창을 화면 절반으로 놓은 폭 ─────────────────────────
+   2열로 쪼개기엔 좁고, 520px로 두면 양옆이 그냥 버려지는 구간이다. */
+@media(min-width:600px) and (max-width:899px){
+  .app,.bar-in{max-width:760px}
+  #spec{font-size:34px}
+  .digits{font-size:68px}
+  .draw-box{padding:4px 22px 0}
+  /* 한 줄이 길어지므로 검토 항목·근거의 행간을 조금 넓힌다 */
+  .chk{padding:13px 18px}
+  .eq{line-height:1.9}
+}
+
 /* ── 태블릿·데스크톱 2열 ────────────────────────────── */
 @media(min-width:900px){
   body{padding-bottom:40px}
@@ -363,12 +386,6 @@ th:last-child,td:last-child{padding-right:0}
   .card:first-child,.acc:first-child{margin-top:12px}
   #spec{font-size:38px}
   .digits{font-size:64px}
-  /* 퀵칩 — 가로 스크롤 대신 두 줄 (1줄 호칭경 · 2줄 머리 형상).
-     구분선을 폭 100%·높이 0으로 바꿔 줄바꿈 지점으로 쓴다. */
-  .quick{flex-wrap:wrap;overflow-x:visible;row-gap:8px}
-  .qdiv{width:100%;height:0;margin:0;background:none}
-  .quick-wrap .qnav,.quick-wrap.can-l .qnav-l,.quick-wrap.can-r .qnav-r{display:none}
-  .quick-wrap::before,.quick-wrap::after{content:none}
   .track{height:52px}
   .thumb{width:32px;height:32px;margin:-16px 0 0 -16px}
   /* 데스크톱에서는 시트를 중앙 모달로 */
