@@ -143,6 +143,12 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .chk-warn .chk-t b{color:var(--warn)}
 .chk-na .chk-t b{color:var(--ink-3)}
 .chk-t span{display:block;font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;line-height:1.5}
+/* 설계 NG 대응 방법 — 실패한 항목 바로 아래에 붙인다 */
+.chk-fix{margin-top:8px;padding:9px 11px 10px;background:var(--ng-tint);border-radius:var(--r-sm)}
+.chk-fix em{display:block;font-style:normal;font-size:10.5px;font-weight:700;color:var(--ng)}
+.chk-fix ol{margin:4px 0 0;padding-left:17px}
+.chk-fix li{font-size:12px;font-weight:500;color:var(--ink-2);line-height:1.55;margin-top:3px}
+.chk-fix li::marker{color:var(--ng);font-weight:700}
 .chk-v{font-family:var(--num);font-size:13.5px;font-weight:700;flex:none;font-variant-numeric:tabular-nums;
   color:var(--ink-2);margin-top:1px}
 
@@ -248,6 +254,21 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .eq .bad{color:var(--ng);font-weight:600}
 .eq .good{color:var(--ok);font-weight:600}
 .eq .wr{color:var(--warn);font-weight:600}
+/* 근거 출처 배지 — t1/t2 규격, t3 전문 자료·TDS, t4 자체 경험값 */
+.srcs{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;line-height:1}
+.src{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:0;padding:3px 8px;
+  border-radius:var(--r-full);white-space:nowrap;font-variant-numeric:normal}
+.src.t1,.src.t2{background:var(--brand-tint);color:var(--brand)}
+.src.t2{box-shadow:inset 0 0 0 1px rgba(27,87,232,.22)}
+.src.t3{background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line)}
+.src.t4{background:var(--warn-tint);color:var(--warn)}
+.src-legend{margin-top:2px}
+.lg-row{display:flex;align-items:center;gap:9px;margin-top:6px;font-size:12px;line-height:1.45}
+.lg-row i{flex:none;min-width:62px;text-align:center}
+.lg-row b{color:var(--ink);font-weight:600}
+.lg-note{font-size:12px;line-height:1.6;color:var(--ink-2);background:var(--surface-2);
+  padding:11px 12px;border-radius:var(--r-sm);margin-top:11px}
+.lg-note b{color:var(--ink);font-weight:700}
 table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 th,td{text-align:right;padding:9px 4px;border-bottom:1px solid var(--line-2)}
 th{font-size:10.5px;font-weight:600;color:var(--ink-3);border-bottom:1px solid var(--line)}
