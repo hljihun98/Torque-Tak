@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#F4F6F8">
+<meta name="description" content="볼트 체결 조건에 따른 권장 토크를 빠르게 계산하는 모바일 웹 도구">
+<title>Torque Tak! · 볼트 체결토크</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="bar" id="bar">
+  <div class="bar-in">
+    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M21.4 12 16.7 20.1 7.3 20.1 2.6 12 7.3 3.9 16.7 3.9Z" fill="none" stroke="#0B1220" stroke-width="1.9" stroke-linejoin="round"/>
+      <circle cx="12" cy="12" r="3.7" fill="#1B57E8"/>
+    </svg>
+    <h1>Torque Tak<i>!</i></h1><span class="sub">토크탁!</span>
+  </div>
+</div>
+
+<div class="app">
+ <div class="col col-a">
+  <section class="card">
+    <div class="spec-wrap">
+      <div class="lbl">볼트 사양</div>
+      <div class="spec-row">
+        <input id="spec" value="M5-12" autocomplete="off" spellcheck="false" placeholder="M5-12" aria-label="볼트 사양">
+        <button class="clear tap" id="clearBtn" aria-label="지우기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+      </div>
+      <div class="parse" id="parse"></div>
+      <div class="err" id="err" hidden></div>
+    </div>
+    <div class="quick-wrap" id="quickWrap">
+      <div class="quick" id="quick"></div>
+      <button class="qnav qnav-l" id="qPrev" aria-label="볼트 사양 왼쪽으로" tabindex="-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="qnav qnav-r" id="qNext" aria-label="볼트 사양 오른쪽으로" tabindex="-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="hero" id="hero">
+      <div class="hero-top">
+        <span class="lbl">권장 체결토크</span>
+        <span class="copy-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M5.5 15H4.4A1.4 1.4 0 013 13.6V4.4A1.4 1.4 0 014.4 3h9.2A1.4 1.4 0 0115 4.4v1.1"/></svg>
+          탭하여 복사
+        </span>
+      </div>
+      <button class="num tap-sm" id="copyBtn" aria-label="토크값 복사">
+        <span class="digits" id="digits">—</span><span class="unit">N·m</span>
+      </button>
+      <div class="bands">
+        <div class="band" id="bandWrench"></div>
+        <div class="band" id="bandForce"></div>
+      </div>
+      <div class="verdict" id="verdict">
+        <span class="vdot"><svg id="vIcon" viewBox="0 0 24 24"></svg></span>
+        <span class="vtxt"><b id="vTitle">—</b><span id="vDesc"></span></span>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">달성 축력</div><div class="v" id="sForce">—</div></div>
+      <div class="stat"><div class="k">항복 이용률</div><div class="v" id="sUtil">—</div></div>
+      <div class="stat"><div class="k">예상 파단</div><div class="v" id="sBreak">—</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="chk-h"><span class="lbl">검토 항목</span><span class="chk-tags" id="chkTags"></span></div>
+    <div id="chkList"></div>
+  </section>
+
+  <section class="card" id="remCard" hidden>
+    <div class="rem-h">
+      <span class="lbl">분해 시 필요 토크</span>
+      <span class="rem-tag" id="remGrade"></span>
+    </div>
+    <div class="rem-body">
+      <div class="rem-num"><span id="remVal">—</span><small>N·m</small></div>
+      <div class="rem-range" id="remRange"></div>
+      <div class="rem-split">
+        <div><span class="k">체결 마찰분</span><span class="v" id="remFric">—</span></div>
+        <div><span class="k">고정제 이탈분</span><span class="v" id="remAdh">—</span></div>
+      </div>
+      <div class="rem-bar"><i id="remBar"></i><u id="remMark"></u></div>
+      <div class="rem-foot" id="remFoot"></div>
+    </div>
+  </section>
+
+ </div>
+
+ <div class="col col-b">
+  <section class="card">
+    <div class="sec-head">
+      <span class="lbl">암나사 물림 깊이 Le</span>
+      <span class="v" id="leRead">—</span>
+    </div>
+    <div class="draw-box"><svg id="draw" viewBox="0 0 340 172" role="img" aria-label="볼트 체결부 단면도"></svg></div>
+    <div class="le-ctl">
+      <div class="track" id="track" role="slider" aria-label="유효 물림 깊이" tabindex="0" aria-valuemin="0" aria-valuenow="0">
+        <div class="rail"><i class="fill" id="fill" style="width:0"></i></div>
+        <div class="tick tick-min" id="tickMin"></div>
+        <div class="tick tick-ok" id="tickOk"></div>
+        <div class="thumb ghost" id="thumb"></div>
+        <span class="snap" id="snap" aria-hidden="true">탁!</span>
+      </div>
+      <div class="scale">
+        <span class="tick-lbl min" id="lblMin">최소</span>
+        <span class="tick-lbl ok" id="lblOk">적합 기준</span>
+      </div>
+      <div class="le-foot">
+        <span class="le-note" id="leNote">밀어서 실제 물림 길이를 맞추세요</span>
+        <button class="le-reset" id="leReset" hidden>미설정으로</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="seg-block">
+      <div class="lbl">작용 하중 (선택) — 넣으면 필요 축력까지 검토합니다</div>
+      <div class="seg" id="segLoad"><div class="seg-ind" id="indLoad"></div></div>
+      <div class="load-in"><input id="load" type="number" inputmode="numeric" min="0" step="10" placeholder="0" aria-label="작용 하중"><span>N</span></div>
+      <button class="load-clr" id="loadClr" hidden>하중 검토 해제</button>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <section class="card">
+    <div class="seg-block">
+      <div class="lbl">볼트 강도구분</div>
+      <div class="seg" id="segCls"><div class="seg-ind" id="indCls"></div></div>
+    </div>
+    <div class="seg-block">
+      <div class="lbl">목표 축력 (% 항복)</div>
+      <div class="seg" id="segPl"><div class="seg-ind" id="indPl"></div></div>
+    </div>
+    <div class="rows">
+      <button class="row" data-sheet="mat"><span class="k">탭 모재</span><span class="v" id="vMat"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="head"><span class="k">머리 형상</span><span class="v" id="vHead"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="k"><span class="k">체결 조건</span><span class="v" id="vK"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="lock"><span class="k">나사 고정제</span><span class="v" id="vLock"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="washer"><span class="k">와셔</span><span class="v" id="vWasher"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </section>
+
+ </div>
+
+ <div class="col col-full">
+  <div class="acc" id="accBasis">
+    <button class="acc-h" data-acc="accBasis">계산 근거
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in"><div class="eq" id="basis"></div></div></div></div>
+  </div>
+
+  <div class="acc" id="accLimit">
+    <button class="acc-h" data-acc="accLimit">모델 한계 — 반드시 읽어주세요 <span class="cnt">중요</span>
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in">
+      <p class="note"><b>1. 토크로는 축력을 정밀 제어할 수 없습니다.</b> 표시 토크를 정확히 걸어도 마찰계수 산포 때문에 실제 축력은 <code>±30%</code> 범위로 흩어집니다. 안전이 걸린 체결부는 축력계·각도법·연신법으로 검증하십시오.</p>
+      <p class="note"><b>2. 경험 보정값을 씁니다.</b> 나사산 전단면적의 변형 보정계수 <code>0.65</code>, 머리 형상 계수(접시 0.75 / 저두 0.60 / 버튼 0.70)는 규격 실측값이 아니라 <b>경험 근사값</b>입니다. 실물 파단 시험으로 재교정해야 합니다.</p>
+      <p class="note"><b>3. 박판·소수 나사산에는 적용되지 않습니다.</b> 유효 나사산 3산 미만 또는 Le 2.5mm 미만에서는 파괴가 나사산 전단이 아니라 <b>판재 함몰·찢김</b>으로 일어납니다. 이 모델의 물리가 성립하지 않습니다. 버링탭·PEM너트·클린칭너트를 검토하십시오.</p>
+      <p class="note"><b>4. 저두의 실제 파괴는 육각홀 뭉개짐입니다.</b> 얕은 소켓은 볼트가 끊어지기 전에 렌치 홀이 먼저 망가집니다. 이건 볼트 강도를 계수로 깎는 방식으로 표현되지 않습니다.</p>
+      <p class="note"><b>5. 접시머리 원추 좌면은 미검토입니다.</b> 알루미늄 박판에 접시머리를 쓰면 좌면이 가라앉는 모드가 지배할 수 있습니다.</p>
+      <p class="note"><b>6. 나사 치수는 기준 치수(공차 무반영)입니다.</b> 최악 공차 조합에서 전단면적이 10~15% 작아질 수 있습니다.</p>
+      <p class="note"><b>7. 예상 파단 토크는 참고값입니다.</b> 항복 이후에는 토크-축력 관계가 무너지고 마찰이 급변하므로, 파괴까지 조인 토크를 이 모델로 예측할 수 없습니다. 실측과 20~40% 차이는 정상입니다.</p>
+      <p class="note"><b>8. 진동 이완·열팽창차·피로는 미검토입니다.</b></p>
+      <p class="note"><b>9. 나사 고정제 수치는 TDS 공칭값 기반 근사입니다.</b> 등급별 M10 이탈 토크(ISO 10964, 강재, 24h)를 호칭경·물림 길이로 환산했습니다. 호칭경 보정은 <code>LOCTITE 243</code> TDS의 M6·M10·M16 3점(3 / 26 / 44 N·m) 보간이며, 다른 등급에도 같은 형상을 적용했습니다. <b>M6 미만은 실측 구간 밖 외삽</b>이고, 실제 이탈 토크는 도포량·경화 시간·표면 상태·간극에 따라 크게 흩어집니다. 분해 계획은 반드시 실물 시험으로 확인하세요.</p>
+    </div></div></div>
+  </div>
+
+  <div class="acc" id="accMeas">
+    <button class="acc-h" data-acc="accMeas">사내 실측 대조 <span class="cnt" id="measCnt"></span>
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in">
+      <table><thead><tr><th>사용처</th><th>Le</th><th>실측</th><th>예상</th><th>편차</th></tr></thead><tbody id="measBody"></tbody></table>
+      <div class="summ" id="measSumm"></div>
+      <div class="summ" id="measWarn"></div>
+    </div></div></div>
+  </div>
+
+  <div class="acc" id="accLen">
+    <button class="acc-h" data-acc="accLen">볼트 길이는 토크를 결정하지 않습니다
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in">
+      <p class="note"><b>입력한 길이는 사양 식별용입니다.</b> 강도를 지배하는 건 볼트 유효단면적·강도구분과, 암나사에 실제로 물린 깊이 Le입니다.</p>
+      <p class="note">판재가 두꺼워 긴 볼트를 쓰면 물린 나사산 수가 같아도 <em>체결길이÷볼트길이</em>는 절반이 됩니다. 이 값은 강도와 인과관계가 없습니다.</p>
+    </div></div></div>
+  </div>
+
+  <p class="foot">
+    T = K · F · d &nbsp;·&nbsp; A<sub>ts</sub> = 0.875 π d Le × 0.65 &nbsp;·&nbsp; σ<sub>eq</sub> = √(σ² + 3(0.5τ)²)<br>
+    설계 기준값입니다. 안전 관련 체결부는 실물 검증 후 확정하십시오.<br>
+    <b style="color:var(--ink-2);font-weight:700">Torque Tak!</b> · HL로보틱스
+  </p>
+ </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-hidden="true" inert>
+  <div class="sheet-grab" id="grab"><i></i></div>
+  <div class="sheet-h"><b id="sheetTitle"></b>
+    <button class="x tap" id="sheetX" aria-label="닫기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+  </div>
+  <div class="sheet-b" id="sheetBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
