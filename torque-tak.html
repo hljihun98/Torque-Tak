@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#F4F6F8">
+<title>Torque Tak! · 볼트 체결토크</title>
+<style>
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#F7F9FB;
+  --ink:#0B1220; --ink-2:#4A5567; --ink-3:#8593A8;
+  --line:#E4E9EF; --line-2:#EFF2F6;
+  --brand:#1B57E8; --brand-tint:#EAF0FE;
+  --ok:#0B8A5B; --ok-tint:#E6F5EE;
+  --warn:#C77700; --warn-tint:#FEF3E0;
+  --ng:#D92D20; --ng-tint:#FEECEA;
+  --r-sm:10px; --r:14px; --r-lg:20px; --r-full:999px;
+  --sh-1:0 1px 2px rgba(11,18,32,.05), 0 1px 1px rgba(11,18,32,.03);
+  --sh-3:0 -8px 40px rgba(11,18,32,.16);
+  --ease:cubic-bezier(.22,1,.36,1);
+  --sans:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"SF Pro Display","Apple SD Gothic Neo","Segoe UI Variable","Segoe UI",Roboto,"Malgun Gothic",sans-serif;
+  --num:"SF Pro Display",-apple-system,"Pretendard Variable",Pretendard,"Segoe UI Variable",Roboto,sans-serif;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
+  letter-spacing:-.01em;padding:0 0 calc(28px + var(--safe-b));overscroll-behavior-y:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit;background:none;border:0;outline:0}
+.app{max-width:520px;margin:0 auto;padding:0 16px}
+.col{display:contents}
+
+
+.tap{transition:transform .1s var(--ease),background .14s var(--ease)}
+.tap:active{transform:scale(.97)}
+.tap-sm:active{transform:scale(.985)}
+
+.bar{position:sticky;top:0;z-index:40;background:rgba(244,246,248,.86);
+  -webkit-backdrop-filter:saturate(1.6) blur(14px);backdrop-filter:saturate(1.6) blur(14px);
+  border-bottom:1px solid transparent;transition:border-color .2s var(--ease)}
+.bar.stuck{border-bottom-color:var(--line)}
+.bar-in{max-width:520px;margin:0 auto;padding:14px 16px 12px;display:flex;align-items:center;gap:10px}
+.mark{width:23px;height:23px;flex:none}
+.bar h1{font-size:16.5px;font-weight:800;letter-spacing:-.038em;white-space:nowrap}
+.bar h1 i{font-style:normal;color:var(--brand)}
+.bar .sub{font-size:11px;color:var(--ink-3);font-weight:600;margin-left:-3px;letter-spacing:-.01em;white-space:nowrap}
+
+.card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);margin-top:12px;overflow:hidden}
+.lbl{font-size:11.5px;font-weight:600;color:var(--ink-3);letter-spacing:.01em}
+
+.spec-wrap{padding:16px 18px 14px}
+.spec-row{display:flex;align-items:center;gap:10px}
+#spec{flex:1;min-width:0;font-family:var(--num);font-size:34px;font-weight:700;
+  letter-spacing:-.035em;padding:2px 0;caret-color:var(--brand)}
+#spec::placeholder{color:#C7D0DC}
+.clear{width:34px;height:34px;flex:none;border-radius:var(--r-full);background:var(--line-2);
+  display:none;align-items:center;justify-content:center;color:var(--ink-3)}
+.clear.show{display:flex}
+.clear svg{width:13px;height:13px}
+.parse{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;min-height:22px}
+.pill{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:var(--r-full);
+  background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+.pill.b{background:var(--brand-tint);color:var(--brand)}
+.pill.w{background:var(--warn-tint);color:var(--warn)}
+.pill.mute{background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.err{margin-top:10px;font-size:13px;font-weight:500;color:var(--ng)}
+.quick-wrap{position:relative}
+.quick-wrap::before,.quick-wrap::after{content:"";position:absolute;top:0;bottom:0;width:42px;
+  pointer-events:none;opacity:0;transition:opacity .2s var(--ease);z-index:1}
+.quick-wrap::before{left:0;background:linear-gradient(90deg,#fff 28%,rgba(255,255,255,0))}
+.quick-wrap::after{right:0;background:linear-gradient(270deg,#fff 28%,rgba(255,255,255,0))}
+.quick-wrap.can-l::before{opacity:1}
+.quick-wrap.can-r::after{opacity:1}
+.qnav{position:absolute;top:50%;margin-top:-18px;width:36px;height:36px;border-radius:var(--r-full);
+  background:var(--surface);box-shadow:0 2px 10px rgba(11,18,32,.16),0 0 0 1px rgba(11,18,32,.04);
+  display:none;align-items:center;justify-content:center;color:var(--ink-2);z-index:2;
+  transition:transform .12s var(--ease),color .15s var(--ease)}
+.qnav svg{width:15px;height:15px}
+.qnav:active{transform:scale(.9)}
+.qnav-l{left:5px} .qnav-r{right:5px}
+/* 넘칠 때만 노출 — 포인터 종류에 의존하지 않음 */
+.quick-wrap.can-l .qnav-l,.quick-wrap.can-r .qnav-r{display:flex}
+.quick{display:flex;gap:6px;overflow-x:auto;padding:12px 18px 16px;scrollbar-width:none;-ms-overflow-style:none}
+.quick::-webkit-scrollbar{display:none}
+.qchip{flex:none;height:42px;padding:0 16px;border-radius:var(--r-full);background:var(--surface-2);
+  font-size:13.5px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;
+  transition:background .15s var(--ease),color .15s var(--ease),transform .1s var(--ease)}
+.qchip:active{transform:scale(.94)}
+.qchip.on{background:var(--ink);color:#fff}
+.qdiv{flex:none;width:1px;background:var(--line);margin:7px 5px}
+
+.hero{position:relative;padding:22px 18px 18px;transition:background .3s var(--ease)}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:radial-gradient(120% 80% at 50% 0%,var(--st-tint) 0%,transparent 62%);
+  transition:opacity .3s var(--ease)}
+.hero>*{position:relative;z-index:1}
+.hero-top{display:flex;align-items:center;justify-content:space-between}
+.copy-hint{display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--ink-3)}
+.copy-hint svg{width:12px;height:12px}
+.num{display:flex;align-items:baseline;justify-content:center;gap:8px;margin:8px 0 4px;font-family:var(--num)}
+.digits{display:flex;font-size:clamp(58px,17vw,76px);font-weight:700;letter-spacing:-.045em;line-height:1.02;
+  color:var(--st);transition:color .3s var(--ease);font-variant-numeric:tabular-nums}
+.digits span{display:inline-block}
+.digits span.pt{width:.28em;text-align:center}
+.unit{font-size:20px;font-weight:600;color:var(--ink-3);letter-spacing:-.02em}
+.bands{text-align:center}
+.band{font-size:12px;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.band b{font-weight:700;color:var(--ink-2)}
+.band+.band{margin-top:2px}
+@media(prefers-reduced-motion:no-preference){
+  .digits span.roll{animation:roll .34s var(--ease)}
+  @keyframes roll{0%{transform:translateY(.42em);opacity:0}60%{opacity:1}100%{transform:translateY(0);opacity:1}}
+}
+.verdict{margin-top:14px;display:flex;align-items:center;gap:9px;padding:12px 14px;
+  border-radius:var(--r);background:var(--st-tint);transition:background .3s var(--ease)}
+.verdict.idle{background:var(--brand-tint)}
+.verdict.idle .vdot{background:var(--brand)}
+.verdict.idle .vtxt b{color:var(--brand)}
+.vdot{width:20px;height:20px;flex:none;border-radius:var(--r-full);background:var(--st);
+  display:flex;align-items:center;justify-content:center;transition:background .3s var(--ease)}
+.vdot svg{width:11px;height:11px}
+.vtxt{min-width:0}
+.vtxt b{display:block;font-size:13.5px;font-weight:700;color:var(--st);letter-spacing:-.015em;transition:color .3s var(--ease)}
+.vtxt span{display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin-top:1px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line-2)}
+.stat{padding:13px 8px;text-align:center;border-left:1px solid var(--line-2)}
+.stat:first-child{border-left:0}
+.stat .k{font-size:11px;font-weight:600;color:var(--ink-3)}
+.stat .v{font-family:var(--num);font-size:17px;font-weight:700;letter-spacing:-.03em;margin-top:2px;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:11px;font-weight:600;color:var(--ink-3);margin-left:2px;letter-spacing:0}
+
+/* 검토 항목 */
+.chk-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 10px}
+.chk-tags{display:flex;gap:5px}
+.ctag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--r-full)}
+.ctag.ok{background:var(--ok-tint);color:var(--ok)}
+.ctag.warn{background:var(--warn-tint);color:var(--warn)}
+.ctag.bad{background:var(--ng-tint);color:var(--ng)}
+.chk{display:flex;gap:11px;padding:11px 18px;align-items:flex-start;border-top:1px solid var(--line-2)}
+.chk-ic{width:19px;height:19px;flex:none;border-radius:var(--r-full);display:flex;align-items:center;
+  justify-content:center;margin-top:1px}
+.chk-ic svg{width:10px;height:10px}
+.chk-ok .chk-ic{background:var(--ok-tint);color:var(--ok)}
+.chk-warn .chk-ic{background:var(--warn-tint);color:var(--warn)}
+.chk-bad .chk-ic{background:var(--ng-tint);color:var(--ng)}
+.chk-na .chk-ic{background:var(--line-2);color:var(--ink-3)}
+.chk-t{min-width:0;flex:1}
+.chk-t b{display:block;font-size:13.5px;font-weight:600}
+.chk-bad .chk-t b{color:var(--ng)}
+.chk-warn .chk-t b{color:var(--warn)}
+.chk-na .chk-t b{color:var(--ink-3)}
+.chk-t span{display:block;font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;line-height:1.5}
+.chk-v{font-family:var(--num);font-size:13.5px;font-weight:700;flex:none;font-variant-numeric:tabular-nums;
+  color:var(--ink-2);margin-top:1px}
+
+.rem-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 0}
+.rem-tag{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:var(--r-full);
+  background:var(--surface-2);color:var(--ink-2)}
+.rem-tag.red{background:var(--ng-tint);color:var(--ng)}
+.rem-tag.blue{background:var(--brand-tint);color:var(--brand)}
+.rem-body{padding:6px 18px 18px}
+.rem-num{font-family:var(--num);font-size:40px;font-weight:700;letter-spacing:-.04em;
+  line-height:1.1;font-variant-numeric:tabular-nums}
+.rem-num small{font-size:16px;font-weight:600;color:var(--ink-3);margin-left:6px;letter-spacing:-.02em}
+.rem-range{font-size:12px;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums;margin-top:1px}
+.rem-split{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-2);
+  border:1px solid var(--line-2);border-radius:var(--r-sm);overflow:hidden;margin-top:14px}
+.rem-split>div{background:var(--surface);padding:9px 11px;display:flex;flex-direction:column;gap:2px}
+.rem-split .k{font-size:11px;font-weight:600;color:var(--ink-3)}
+.rem-split .v{font-family:var(--num);font-size:15px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.rem-bar{position:relative;height:8px;border-radius:var(--r-full);background:var(--line-2);margin-top:14px;overflow:hidden}
+.rem-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:var(--r-full);background:var(--ok);transition:width .25s var(--ease),background .25s var(--ease)}
+.rem-bar i.w{background:var(--warn)} .rem-bar i.b{background:var(--ng)}
+.rem-bar u{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.4}
+.rem-foot{font-size:12px;line-height:1.55;color:var(--ink-2);font-weight:500;margin-top:9px}
+.rem-foot b{font-weight:700}
+.rem-foot.bad{color:var(--ng)} .rem-foot.warn{color:var(--warn)}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:16px 18px 0}
+.sec-head .v{font-family:var(--num);font-size:15px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.draw-box{padding:4px 12px 0}
+#draw{display:block;width:100%;height:auto}
+.le-ctl{padding:6px 18px 18px}
+.track{position:relative;height:46px;touch-action:none;display:flex;align-items:center;cursor:grab}
+.track:active{cursor:grabbing}
+.rail{position:absolute;left:0;right:0;height:8px;border-radius:var(--r-full);background:var(--line-2);overflow:hidden}
+.fill{position:absolute;left:0;top:0;bottom:0;background:var(--st);border-radius:var(--r-full);transition:background .3s var(--ease)}
+.tick{position:absolute;top:50%;border-radius:1px;transform:translateX(-50%)}
+.tick-min{width:2px;height:12px;margin-top:-6px;background:var(--ink);opacity:.18}
+.tick-ok{width:2.5px;height:18px;margin-top:-9px;background:var(--ink);opacity:.42}
+.scale{position:relative;height:17px;margin-top:1px}
+.tick-lbl{position:absolute;top:0;font-size:10.5px;font-weight:600;white-space:nowrap;
+  transform:translateX(-50%);transition:opacity .18s var(--ease)}
+.tick-lbl.min{color:var(--ink-3);opacity:.7}
+.tick-lbl.ok{color:var(--ink-2)}
+.tick-lbl.hide{opacity:0}
+.tick-lbl.blocked{color:var(--ink-3);opacity:.55}
+.tick.blocked{opacity:.16}
+.thumb{position:absolute;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:var(--r-full);
+  background:#fff;box-shadow:0 2px 8px rgba(11,18,32,.2),0 0 0 1px rgba(11,18,32,.05);
+  display:flex;align-items:center;justify-content:center;transition:box-shadow .18s var(--ease)}
+.thumb::after{content:"";width:10px;height:10px;border-radius:var(--r-full);background:var(--st);transition:background .3s var(--ease)}
+.thumb.ghost{background:var(--line-2);box-shadow:none}
+.thumb.ghost::after{background:var(--ink-3);opacity:.5}
+.thumb.pulse{box-shadow:0 2px 8px rgba(11,18,32,.2),0 0 0 8px var(--st-tint)}
+.snap{position:absolute;top:-14px;font-size:13.5px;font-weight:800;letter-spacing:-.03em;
+  color:var(--st);opacity:0;pointer-events:none;transform:translateX(-50%)}
+.snap.go{animation:snapPop .64s var(--ease)}
+@keyframes snapPop{
+  0%{opacity:0;transform:translateX(-50%) translateY(7px) scale(.5)}
+  28%{opacity:1;transform:translateX(-50%) translateY(-3px) scale(1.14)}
+  52%{opacity:1;transform:translateX(-50%) translateY(-5px) scale(1)}
+  100%{opacity:0;transform:translateX(-50%) translateY(-14px) scale(.94)}
+}
+.le-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.le-note{font-size:12px;font-weight:500;color:var(--ink-3)}
+.le-reset{font-size:12px;font-weight:600;color:var(--brand);padding:6px 0}
+
+.seg-block{padding:16px 18px 4px}
+.seg-block+.seg-block{padding-top:4px}
+.seg{position:relative;display:flex;background:var(--surface-2);border-radius:12px;padding:3px;margin-top:8px}
+.seg-ind{position:absolute;top:3px;bottom:3px;border-radius:9px;background:var(--surface);
+  box-shadow:var(--sh-1);transition:left .26s var(--ease),width .26s var(--ease)}
+.seg button{position:relative;z-index:1;flex:1;height:44px;font-size:13px;font-weight:600;color:var(--ink-3);
+  transition:color .2s var(--ease);border-radius:9px}
+.seg button.on{color:var(--ink)}
+.rows{padding:8px 0 4px}
+.row{display:flex;align-items:center;gap:12px;width:100%;padding:14px 18px;text-align:left;
+  transition:background .12s var(--ease)}
+.row:active{background:var(--surface-2)}
+.row .k{font-size:14px;font-weight:600;color:var(--ink-2);flex:none}
+.row .v{margin-left:auto;font-size:14px;font-weight:600;color:var(--ink);text-align:right;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .ch{width:14px;height:14px;flex:none;color:var(--ink-3)}
+
+.load-in{display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:var(--r);
+  padding:0 14px;height:52px;margin-top:8px}
+.load-in input{flex:1;min-width:0;height:100%;font-family:var(--num);font-size:19px;font-weight:700;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.load-in span{font-size:14px;font-weight:600;color:var(--ink-3);flex:none}
+.load-clr{font-size:12px;font-weight:600;color:var(--brand);padding:8px 0;margin-top:6px}
+
+.acc{margin-top:12px;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}
+.acc-h{display:flex;align-items:center;gap:9px;width:100%;padding:16px 18px;font-size:14px;font-weight:600;text-align:left}
+.acc-h .cnt{font-size:11.5px;font-weight:600;color:var(--ink-3);background:var(--surface-2);padding:2px 7px;border-radius:var(--r-full);flex:none}
+.acc-h .ar{margin-left:auto;width:14px;height:14px;color:var(--ink-3);transition:transform .26s var(--ease);flex:none}
+.acc.open .acc-h .ar{transform:rotate(180deg)}
+.acc-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s var(--ease)}
+.acc.open .acc-b{grid-template-rows:1fr}
+.acc-b>div{overflow:hidden}
+.acc-in{padding:0 18px 18px}
+.eq{font-size:12.5px;line-height:1.85;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.eq b{color:var(--ink);font-weight:700}
+.eq .st{font-weight:700;font-size:12px;color:var(--ink-3);display:block;margin-bottom:1px}
+.eq hr{border:0;border-top:1px solid var(--line-2);margin:11px 0}
+.eq .bad{color:var(--ng);font-weight:600}
+.eq .good{color:var(--ok);font-weight:600}
+.eq .wr{color:var(--warn);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:9px 4px;border-bottom:1px solid var(--line-2)}
+th{font-size:10.5px;font-weight:600;color:var(--ink-3);border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+th:last-child,td:last-child{padding-right:0}
+.d-ok{color:var(--ok);font-weight:600}.d-mid{color:var(--warn);font-weight:600}.d-bad{color:var(--ng);font-weight:600}
+.mut{color:var(--ink-3)}
+.summ{font-size:12.5px;line-height:1.6;color:var(--ink-2);background:var(--surface-2);padding:12px;border-radius:var(--r-sm);margin-top:12px}
+.summ b{color:var(--ink);font-weight:700}
+.summ+.summ{margin-top:8px}
+.note{font-size:13px;line-height:1.65;color:var(--ink-2)}
+.note+.note{margin-top:10px}
+.note b{color:var(--ink);font-weight:600}
+.note code{font-family:var(--num);font-weight:700;background:var(--surface-2);padding:1px 5px;border-radius:5px;font-size:12px}
+
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(11,18,32,.4);opacity:0;pointer-events:none;
+  transition:opacity .26s var(--ease);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--surface);
+  border-radius:22px 22px 0 0;box-shadow:var(--sh-3);transform:translateY(101%);
+  transition:transform .34s var(--ease);pointer-events:none;max-height:82vh;max-height:82dvh;
+  display:flex;flex-direction:column;padding-bottom:var(--safe-b)}
+.sheet.on{transform:translateY(0);pointer-events:auto}
+.sheet-grab{padding:10px 0 4px;display:flex;justify-content:center;touch-action:none;cursor:grab}
+.sheet-grab i{width:36px;height:4px;border-radius:2px;background:var(--line);display:block}
+.sheet-h{display:flex;align-items:center;padding:4px 20px 12px}
+.sheet-h b{font-size:17px;font-weight:700;letter-spacing:-.02em}
+.sheet-h .x{margin-left:auto;width:34px;height:34px;border-radius:var(--r-full);background:var(--surface-2);
+  display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.sheet-h .x svg{width:13px;height:13px}
+.sheet-b{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 12px 16px}
+.opt{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border-radius:var(--r);text-align:left;
+  transition:background .12s var(--ease)}
+.opt:active{background:var(--surface-2)}
+.opt.on{background:var(--brand-tint)}
+.opt .t{font-size:14.5px;font-weight:600}
+.opt.on .t{color:var(--brand)}
+.opt .d{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:1px}
+.opt .tk{margin-left:auto;width:17px;height:17px;color:var(--brand);opacity:0;flex:none}
+.opt.on .tk{opacity:1}
+.warn-strip{display:flex;gap:8px;align-items:flex-start;background:var(--warn-tint);border-radius:var(--r-sm);
+  padding:10px 12px;font-size:12px;line-height:1.55;color:var(--warn);font-weight:500;margin:0 8px 10px}
+.warn-strip svg{width:14px;height:14px;flex:none;margin-top:1px}
+.toast{position:fixed;left:50%;bottom:calc(24px + var(--safe-b));z-index:60;
+  transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--ink);color:#fff;
+  font-size:13.5px;font-weight:600;padding:12px 18px;border-radius:var(--r-full);
+  box-shadow:0 6px 24px rgba(11,18,32,.3);transition:transform .3s var(--ease),opacity .3s var(--ease);white-space:nowrap}
+.toast.on{transform:translate(-50%,0);opacity:1}
+.foot{text-align:center;font-size:11.5px;line-height:1.75;color:var(--ink-3);padding:22px 20px 0;font-weight:500}
+/* ══════════ 반응형 — 소스 순서상 마지막에 위치해야 override 유효 ══════════ */
+/* ── 초소형 단말 (Galaxy Fold, iPhone SE) ───────────── */
+@media(max-width:379px){
+  .app{padding:0 11px}
+  .bar-in{padding:12px 12px 10px;gap:8px}
+  .bar .sub{display:none}
+  .bar-btn{padding:0 12px;font-size:12.5px}
+  #spec{font-size:29px}
+  .spec-wrap,.chk-h,.sec-head,.seg-block{padding-left:14px;padding-right:14px}
+  .le-ctl{padding-left:14px;padding-right:14px}
+  .row,.chk{padding-left:14px;padding-right:14px}
+  .hero{padding:18px 14px 15px}
+  .stat{padding:11px 5px}
+  .stat .k{font-size:10px}
+  .stat .v{font-size:15px}
+  .stat .v small{font-size:10px}
+  .seg button{font-size:12px;padding:0 2px}
+  .chk-t b{font-size:13px}
+  .chk-v{font-size:12.5px}
+  .qchip{padding:0 13px;font-size:13px}
+}
+
+/* ── 가로 모드 (낮은 높이) ──────────────────────────── */
+@media(max-height:520px) and (orientation:landscape){
+  .bar-in{padding:8px 16px}
+  .hero{padding:14px 18px 12px}
+  .digits{font-size:clamp(40px,9vw,52px)}
+  .num{margin:4px 0 3px}
+  .verdict{margin-top:10px;padding:10px 12px}
+  .card{margin-top:9px}
+}
+
+@media(min-width:560px){body{font-size:15.5px}.app{padding:0 20px}}
+
+/* ── 태블릿·데스크톱 2열 ────────────────────────────── */
+@media(min-width:900px){
+  body{padding-bottom:40px}
+  .bar-in{max-width:1080px;padding-left:20px;padding-right:20px}
+  .app{max-width:1080px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,4fr);
+       gap:0 18px;align-items:start;padding:0 20px}
+  .col{display:block;min-width:0}
+  .col-full{grid-column:1 / -1}
+  .card:first-child,.acc:first-child{margin-top:12px}
+  #spec{font-size:38px}
+  .digits{font-size:64px}
+  .qnav{width:38px;height:38px;margin-top:-19px}
+  .qnav svg{width:16px;height:16px}
+  .track{height:52px}
+  .thumb{width:32px;height:32px;margin:-16px 0 0 -16px}
+  /* 데스크톱에서는 시트를 중앙 모달로 */
+  .sheet{left:50%;right:auto;bottom:auto;top:50%;width:min(460px,92vw);
+    border-radius:20px;max-height:min(78vh,660px);
+    transform:translate(-50%,-42%) scale(.97);opacity:0;
+    transition:transform .28s var(--ease),opacity .22s var(--ease)}
+  .sheet.on{transform:translate(-50%,-50%) scale(1);opacity:1}
+  .sheet-grab{display:none}
+  .sheet-h{padding-top:18px}
+  .toast{bottom:32px}
+}
+@media(min-width:1180px){
+  .app{max-width:1180px}
+  .bar-in{max-width:1180px}
+}
+/* 데스크톱 포인터: 호버 상태 */
+@media(hover:hover) and (pointer:fine){
+  .qnav:hover{color:var(--ink);box-shadow:0 3px 14px rgba(11,18,32,.2),0 0 0 1px rgba(11,18,32,.05)}
+  .row:hover,.opt:hover{background:var(--surface-2)}
+  .qchip:hover{background:#E8ECF2}
+  .qchip.on:hover{background:var(--ink)}
+  .acc-h:hover{background:var(--surface-2)}
+  .tap:active,.tap-sm:active{transform:scale(.985)}
+}
+
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="bar" id="bar">
+  <div class="bar-in">
+    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M21.4 12 16.7 20.1 7.3 20.1 2.6 12 7.3 3.9 16.7 3.9Z" fill="none" stroke="#0B1220" stroke-width="1.9" stroke-linejoin="round"/>
+      <circle cx="12" cy="12" r="3.7" fill="#1B57E8"/>
+    </svg>
+    <h1>Torque Tak<i>!</i></h1><span class="sub">토크탁!</span>
+  </div>
+</div>
+
+<div class="app">
+ <div class="col col-a">
+  <section class="card">
+    <div class="spec-wrap">
+      <div class="lbl">볼트 사양</div>
+      <div class="spec-row">
+        <input id="spec" value="M5-12" autocomplete="off" spellcheck="false" placeholder="M5-12" aria-label="볼트 사양">
+        <button class="clear tap" id="clearBtn" aria-label="지우기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+      </div>
+      <div class="parse" id="parse"></div>
+      <div class="err" id="err" hidden></div>
+    </div>
+    <div class="quick-wrap" id="quickWrap">
+      <div class="quick" id="quick"></div>
+      <button class="qnav qnav-l" id="qPrev" aria-label="볼트 사양 왼쪽으로" tabindex="-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="qnav qnav-r" id="qNext" aria-label="볼트 사양 오른쪽으로" tabindex="-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="hero" id="hero">
+      <div class="hero-top">
+        <span class="lbl">권장 체결토크</span>
+        <span class="copy-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M5.5 15H4.4A1.4 1.4 0 013 13.6V4.4A1.4 1.4 0 014.4 3h9.2A1.4 1.4 0 0115 4.4v1.1"/></svg>
+          탭하여 복사
+        </span>
+      </div>
+      <button class="num tap-sm" id="copyBtn" aria-label="토크값 복사">
+        <span class="digits" id="digits">—</span><span class="unit">N·m</span>
+      </button>
+      <div class="bands">
+        <div class="band" id="bandWrench"></div>
+        <div class="band" id="bandForce"></div>
+      </div>
+      <div class="verdict" id="verdict">
+        <span class="vdot"><svg id="vIcon" viewBox="0 0 24 24"></svg></span>
+        <span class="vtxt"><b id="vTitle">—</b><span id="vDesc"></span></span>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">달성 축력</div><div class="v" id="sForce">—</div></div>
+      <div class="stat"><div class="k">항복 이용률</div><div class="v" id="sUtil">—</div></div>
+      <div class="stat"><div class="k">예상 파단</div><div class="v" id="sBreak">—</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="chk-h"><span class="lbl">검토 항목</span><span class="chk-tags" id="chkTags"></span></div>
+    <div id="chkList"></div>
+  </section>
+
+  <section class="card" id="remCard" hidden>
+    <div class="rem-h">
+      <span class="lbl">분해 시 필요 토크</span>
+      <span class="rem-tag" id="remGrade"></span>
+    </div>
+    <div class="rem-body">
+      <div class="rem-num"><span id="remVal">—</span><small>N·m</small></div>
+      <div class="rem-range" id="remRange"></div>
+      <div class="rem-split">
+        <div><span class="k">체결 마찰분</span><span class="v" id="remFric">—</span></div>
+        <div><span class="k">고정제 이탈분</span><span class="v" id="remAdh">—</span></div>
+      </div>
+      <div class="rem-bar"><i id="remBar"></i><u id="remMark"></u></div>
+      <div class="rem-foot" id="remFoot"></div>
+    </div>
+  </section>
+
+ </div>
+
+ <div class="col col-b">
+  <section class="card">
+    <div class="sec-head">
+      <span class="lbl">암나사 물림 깊이 Le</span>
+      <span class="v" id="leRead">—</span>
+    </div>
+    <div class="draw-box"><svg id="draw" viewBox="0 0 340 172" role="img" aria-label="볼트 체결부 단면도"></svg></div>
+    <div class="le-ctl">
+      <div class="track" id="track" role="slider" aria-label="유효 물림 깊이" tabindex="0" aria-valuemin="0" aria-valuenow="0">
+        <div class="rail"><i class="fill" id="fill" style="width:0"></i></div>
+        <div class="tick tick-min" id="tickMin"></div>
+        <div class="tick tick-ok" id="tickOk"></div>
+        <div class="thumb ghost" id="thumb"></div>
+        <span class="snap" id="snap" aria-hidden="true">탁!</span>
+      </div>
+      <div class="scale">
+        <span class="tick-lbl min" id="lblMin">최소</span>
+        <span class="tick-lbl ok" id="lblOk">적합 기준</span>
+      </div>
+      <div class="le-foot">
+        <span class="le-note" id="leNote">밀어서 실제 물림 길이를 맞추세요</span>
+        <button class="le-reset" id="leReset" hidden>미설정으로</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="seg-block">
+      <div class="lbl">작용 하중 (선택) — 넣으면 필요 축력까지 검토합니다</div>
+      <div class="seg" id="segLoad"><div class="seg-ind" id="indLoad"></div></div>
+      <div class="load-in"><input id="load" type="number" inputmode="numeric" min="0" step="10" placeholder="0" aria-label="작용 하중"><span>N</span></div>
+      <button class="load-clr" id="loadClr" hidden>하중 검토 해제</button>
+    </div>
+    <div style="height:14px"></div>
+  </section>
+
+  <section class="card">
+    <div class="seg-block">
+      <div class="lbl">볼트 강도구분</div>
+      <div class="seg" id="segCls"><div class="seg-ind" id="indCls"></div></div>
+    </div>
+    <div class="seg-block">
+      <div class="lbl">목표 축력 (% 항복)</div>
+      <div class="seg" id="segPl"><div class="seg-ind" id="indPl"></div></div>
+    </div>
+    <div class="rows">
+      <button class="row" data-sheet="mat"><span class="k">탭 모재</span><span class="v" id="vMat"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="head"><span class="k">머리 형상</span><span class="v" id="vHead"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="k"><span class="k">체결 조건</span><span class="v" id="vK"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="lock"><span class="k">나사 고정제</span><span class="v" id="vLock"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="row" data-sheet="washer"><span class="k">와셔</span><span class="v" id="vWasher"></span>
+        <svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </section>
+
+ </div>
+
+ <div class="col col-full">
+  <div class="acc" id="accBasis">
+    <button class="acc-h" data-acc="accBasis">계산 근거
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in"><div class="eq" id="basis"></div></div></div></div>
+  </div>
+
+  <div class="acc" id="accLimit">
+    <button class="acc-h" data-acc="accLimit">모델 한계 — 반드시 읽어주세요 <span class="cnt">중요</span>
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in">
+      <p class="note"><b>1. 토크로는 축력을 정밀 제어할 수 없습니다.</b> 표시 토크를 정확히 걸어도 마찰계수 산포 때문에 실제 축력은 <code>±30%</code> 범위로 흩어집니다. 안전이 걸린 체결부는 축력계·각도법·연신법으로 검증하십시오.</p>
+      <p class="note"><b>2. 경험 보정값을 씁니다.</b> 나사산 전단면적의 변형 보정계수 <code>0.65</code>, 머리 형상 계수(접시 0.75 / 저두 0.60 / 버튼 0.70)는 규격 실측값이 아니라 <b>경험 근사값</b>입니다. 실물 파단 시험으로 재교정해야 합니다.</p>
+      <p class="note"><b>3. 박판·소수 나사산에는 적용되지 않습니다.</b> 유효 나사산 3산 미만 또는 Le 2.5mm 미만에서는 파괴가 나사산 전단이 아니라 <b>판재 함몰·찢김</b>으로 일어납니다. 이 모델의 물리가 성립하지 않습니다. 버링탭·PEM너트·클린칭너트를 검토하십시오.</p>
+      <p class="note"><b>4. 저두의 실제 파괴는 육각홀 뭉개짐입니다.</b> 얕은 소켓은 볼트가 끊어지기 전에 렌치 홀이 먼저 망가집니다. 이건 볼트 강도를 계수로 깎는 방식으로 표현되지 않습니다.</p>
+      <p class="note"><b>5. 접시머리 원추 좌면은 미검토입니다.</b> 알루미늄 박판에 접시머리를 쓰면 좌면이 가라앉는 모드가 지배할 수 있습니다.</p>
+      <p class="note"><b>6. 나사 치수는 기준 치수(공차 무반영)입니다.</b> 최악 공차 조합에서 전단면적이 10~15% 작아질 수 있습니다.</p>
+      <p class="note"><b>7. 예상 파단 토크는 참고값입니다.</b> 항복 이후에는 토크-축력 관계가 무너지고 마찰이 급변하므로, 파괴까지 조인 토크를 이 모델로 예측할 수 없습니다. 실측과 20~40% 차이는 정상입니다.</p>
+      <p class="note"><b>8. 진동 이완·열팽창차·피로는 미검토입니다.</b></p>
+      <p class="note"><b>9. 나사 고정제 수치는 TDS 공칭값 기반 근사입니다.</b> 등급별 M10 이탈 토크(ISO 10964, 강재, 24h)를 호칭경·물림 길이로 환산했습니다. 호칭경 보정은 <code>LOCTITE 243</code> TDS의 M6·M10·M16 3점(3 / 26 / 44 N·m) 보간이며, 다른 등급에도 같은 형상을 적용했습니다. <b>M6 미만은 실측 구간 밖 외삽</b>이고, 실제 이탈 토크는 도포량·경화 시간·표면 상태·간극에 따라 크게 흩어집니다. 분해 계획은 반드시 실물 시험으로 확인하세요.</p>
+    </div></div></div>
+  </div>
+
+  <div class="acc" id="accMeas">
+    <button class="acc-h" data-acc="accMeas">사내 실측 대조 <span class="cnt" id="measCnt"></span>
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in">
+      <table><thead><tr><th>사용처</th><th>Le</th><th>실측</th><th>예상</th><th>편차</th></tr></thead><tbody id="measBody"></tbody></table>
+      <div class="summ" id="measSumm"></div>
+      <div class="summ" id="measWarn"></div>
+    </div></div></div>
+  </div>
+
+  <div class="acc" id="accLen">
+    <button class="acc-h" data-acc="accLen">볼트 길이는 토크를 결정하지 않습니다
+      <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
+    <div class="acc-b"><div><div class="acc-in">
+      <p class="note"><b>입력한 길이는 사양 식별용입니다.</b> 강도를 지배하는 건 볼트 유효단면적·강도구분과, 암나사에 실제로 물린 깊이 Le입니다.</p>
+      <p class="note">판재가 두꺼워 긴 볼트를 쓰면 물린 나사산 수가 같아도 <em>체결길이÷볼트길이</em>는 절반이 됩니다. 이 값은 강도와 인과관계가 없습니다.</p>
+    </div></div></div>
+  </div>
+
+  <p class="foot">
+    T = K · F · d &nbsp;·&nbsp; A<sub>ts</sub> = 0.875 π d Le × 0.65 &nbsp;·&nbsp; σ<sub>eq</sub> = √(σ² + 3(0.5τ)²)<br>
+    설계 기준값입니다. 안전 관련 체결부는 실물 검증 후 확정하십시오.<br>
+    <b style="color:var(--ink-2);font-weight:700">Torque Tak!</b> · HL로보틱스
+  </p>
+ </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-hidden="true" inert>
+  <div class="sheet-grab" id="grab"><i></i></div>
+  <div class="sheet-h"><b id="sheetTitle"></b>
+    <button class="x tap" id="sheetX" aria-label="닫기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+  </div>
+  <div class="sheet-b" id="sheetBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const PI=Math.PI;
+
+/* ══════════════════════════════════════════════════════════
+   나사 제원
+   ══════════════════════════════════════════════════════════ */
+const PITCH={1.6:.35,2:.4,2.5:.45,3:.5,4:.7,5:.8,6:1,8:1.25,10:1.5,12:1.75,14:2,16:2,18:2.5,20:2.5,22:2.5,24:3};
+const SIZES=[3,4,5,6,8,10,12];
+/* ISO 4762 육각홀붙이 머리 지름 (mm) */
+const DHEAD={3:5.5,4:7,5:8.5,6:10,8:13,10:16,12:18,14:21,16:24,20:30,24:36};
+
+/* ══════════════════════════════════════════════════════════
+   볼트 강도구분  su/sy [MPa]
+   ══════════════════════════════════════════════════════════ */
+const CLS={
+  "12.9":{su:1200,sy:1080,label:"12.9",desc:"합금강 고강도"},
+  "10.9":{su:1000,sy:900, label:"10.9",desc:"합금강"},
+  "8.8" :{su:800, sy:640, label:"8.8", desc:"중탄소강"},
+  "A2-70":{su:700,sy:450, label:"A2-70",desc:"SUS304 냉간압조"},
+  "4.8" :{su:400, sy:320, label:"4.8", desc:"연강"},
+  "A2-50":{su:500,sy:210, label:"A2-50",desc:"SUS304 연질"}
+};
+const CLS_RANK=["4.8","8.8","A2-50","A2-70","10.9","12.9"];
+const CLS_SEG=["12.9","10.9","8.8","A2-70"];
+
+/* ══════════════════════════════════════════════════════════
+   머리 형상
+   f    : 토크/축력 제한계수 — 경험 근사값 (규격 실측 아님)
+   cap  : 규격상 최대 강도구분
+   dhr  : 좌면 지름 배수 (d 대비). null = 원추 좌면(미검토)
+   ══════════════════════════════════════════════════════════ */
+const HEAD={
+  std :{label:"표준",   full:"표준 (육각홀붙이 ISO 4762)",   f:1.00, cap:null,   dhr:null, iso:true,  note:"제한 없음"},
+  cs  :{label:"접시 CS", full:"접시 CS (ISO 10642)",         f:0.75, cap:"10.9", dhr:null, cone:true, note:"헤드 두께·소켓 깊이 제한 → 규격 최대 10.9"},
+  low :{label:"저두",    full:"저두 (Low head, DIN 6912)",   f:0.60, cap:"10.9", dhr:1.50, note:"실제 파괴는 육각홀 뭉개짐"},
+  btn :{label:"버튼",    full:"버튼 (ISO 7380)",             f:0.70, cap:"10.9", dhr:1.90, note:"돔 헤드 강도 제한"},
+  sems:{label:"SEMS",   full:"SEMS (와셔 일체)",            f:1.00, cap:"8.8",  dhr:2.10, note:"통상 4.8~8.8 또는 A2-70급"}
+};
+
+/* ══════════════════════════════════════════════════════════
+   모재
+   su : 인장강도 [MPa]
+   pG : 한계 면압 [MPa] — VDI 2230 계열 문헌값
+   shear : 전단강도 보정 (기본 0.6·su)
+   thin  : 박판 여부 (모델 적용 범위 밖 경고)
+   ══════════════════════════════════════════════════════════ */
+/* act: 혐기성 고정제 경화 활성도  1=활성(철계) 0.5=비활성(프라이머 필요) 0=금속 아님 */
+const MAT={
+  S45C  :{su:570,pG:700,act:1,  label:"S45C",    desc:"기계구조용 탄소강"},
+  SCM440:{su:980,pG:900,act:1,  label:"SCM440",  desc:"크롬몰리브덴강"},
+  SS400 :{su:400,pG:490,act:1,  label:"SS400",   desc:"일반 구조용 압연강"},
+  SPCC  :{su:270,pG:260,act:1,  label:"SPCC",    desc:"냉간압연 강판",thin:true},
+  SUS304:{su:520,pG:630,act:.5, label:"SUS304",  desc:"스테인리스"},
+  A6061 :{su:310,pG:300,act:.5, label:"A6061-T6",desc:"알루미늄 압출",alu:true},
+  A5052 :{su:230,pG:210,act:.5, label:"A5052",   desc:"알루미늄 판",alu:true},
+  ADC12 :{su:228,pG:200,act:.5, label:"ADC12",   desc:"알루미늄 다이캐스팅",alu:true},
+  FC250 :{su:250,pG:700,act:1,  label:"FC250",   desc:"회주철",shear:1.1},
+  POM   :{su:65, pG:60, act:0,  label:"POM",     desc:"엔지니어링 플라스틱"}
+};
+
+/* ══════════════════════════════════════════════════════════
+   나사 고정제 (혐기성 threadlocker)
+   bk/pv : M10 강재 볼트·너트, 24h @22°C, ISO 10964 [N·m]
+   출처  : Henkel 공식 TDS 및 제품 스펙 (src 필드에 표기)
+   ══════════════════════════════════════════════════════════ */
+const LOCK={
+  none:{label:"없음",  full:"나사 고정제 없음", bk:0, pv:0, desc:"고정제를 쓰지 않습니다"},
+  L222:{label:"222",  full:"LOCTITE 222 (보라·저강도)", bk:6,  pv:4,  dmin:2, dmax:6,  tmax:150, red:false,
+        src:"TDS", desc:"M2~M6 · 표준 공구로 분해 · 소경 볼트 전용"},
+  L242:{label:"242",  full:"LOCTITE 242 (파랑·중강도)", bk:12, pv:5,  dmin:6, dmax:20, tmax:150, red:false,
+        src:"공표값", desc:"M6~M20 · 범용 중강도"},
+  L243:{label:"243",  full:"LOCTITE 243 (파랑·중강도·내유)", bk:26, pv:24, dmin:6, dmax:20, tmax:150, red:false,
+        src:"TDS", desc:"M6~M20 · 유분 오염 허용 · 가장 널리 쓰임"},
+  L271:{label:"271",  full:"LOCTITE 271 (빨강·고강도)", bk:26, pv:33, dmin:8, dmax:25, tmax:150, red:true,
+        src:"제품 스펙", desc:"M8~M25 · 분해에 250°C 가열 필요"},
+  L272:{label:"272",  full:"LOCTITE 272 (주황·고강도·내열)", bk:22, pv:24, dmin:8, dmax:36, tmax:200, red:true,
+        src:"제품 스펙", desc:"200°C까지 · 분해에 가열 필요"},
+  L290:{label:"290",  full:"LOCTITE 290 (초록·침투형)", bk:20, pv:10, dmin:3, dmax:20, tmax:150, red:false,
+        src:"공표값", wick:true, desc:"조립 후 모세관 침투 도포"}
+};
+
+/* 호칭경 보정 — LOCTITE 243 TDS 실측 3점 (M6:3 / M10:26 / M16:44 N·m) 기반 로그-로그 보간 */
+const LOCK_PTS=[[6,3/26],[10,1],[16,44/26]];
+function lockSizeF(d){
+  const P=LOCK_PTS, sl=(i,j)=>Math.log(P[j][1]/P[i][1])/Math.log(P[j][0]/P[i][0]);
+  /* M6 미만은 실측 구간 밖 — 적합 구간의 지수(약 4.2)를 그대로 외삽하면
+     과소평가가 심해지므로 물리 하한(면적×반경 ∝ d³)으로 제한한다. */
+  if(d<P[0][0]) return P[0][1]*Math.pow(d/P[0][0],Math.min(3,sl(0,1)));
+  if(d>=P[2][0]) return P[2][1]*Math.pow(d/P[2][0],sl(1,2));
+  const i=d<P[1][0]?0:1;
+  return P[i][1]*Math.pow(d/P[i][0],sl(i,i+1));
+}
+/* ISO 4032 표준 너트 높이 — TDS 시험의 기준 물림 길이 */
+const NUT_H={3:2.4,4:3.2,5:4.7,6:5.2,8:6.8,10:8.4,12:10.8,14:12.8,16:14.8,20:18};
+function nutH(d){
+  if(NUT_H[d])return NUT_H[d];
+  const k=Object.keys(NUT_H).map(Number).sort((a,b)=>Math.abs(a-d)-Math.abs(b-d))[0];
+  return NUT_H[k]*d/k;
+}
+
+const KF={
+  dry :{k:.20,label:"무윤활 강재",     desc:"K 0.20 · 기본"},
+  zinc:{k:.18,label:"아연 도금",       desc:"K 0.18"},
+  oil :{k:.15,label:"오일 윤활",       desc:"K 0.15"},
+  moly:{k:.12,label:"이황화몰리브덴",   desc:"K 0.12"},
+  lock:{k:.19,label:"나사 고정제",     desc:"K 0.19"},
+  sus :{k:.28,label:"스테인리스 무윤활",desc:"K 0.28 · 소착 주의"}
+};
+
+const WASHER={
+  none:{label:"없음",  dhr:0,    desc:"볼트 머리가 직접 접촉"},
+  flat:{label:"평와셔", dhr:2.20, desc:"좌면 지름 약 2.2d — 면압 분산"},
+  wide:{label:"대형",   dhr:2.80, desc:"좌면 지름 약 2.8d — 연질재용"}
+};
+
+const PL_SEG=[65,70,75,90];
+const LOAD_SEG=[
+  {v:"none",  label:"미입력"},
+  {v:"axial", label:"축방향 인장"},
+  {v:"shear", label:"횡방향 전단"}
+];
+
+/* ══════════════════════════════════════════════════════════
+   모델 상수 — 출처와 성격을 명시
+   ══════════════════════════════════════════════════════════ */
+const KNOCK    = 0.65;  // 나사산 변형 보정 — 경험 근사값 (문헌 0.6~0.85)
+const STRIP_SF = 2.0;   // 뽑힘 안전율 — K산포·공차·경험계수 불확실성 포괄
+const TG_FRAC  = 0.49;  // 전체 토크 중 나사부 비율 — 표준 토크표로 교정
+const K_TAU    = 0.5;   // 비틀림 감소계수 (VDI 2230)
+const K_SCAT   = 0.30;  // 토크계수 산포 ±30%
+const EMBED    = 0.10;  // 임베딩/이완 손실 10%
+const MU_JOINT = 0.15;  // 마찰 전달 접합면 마찰계수
+const SF_AXIAL = 1.5;   // 축하중 분리 방지 안전율
+const SF_SHEAR = 1.3;   // 횡하중 미끄럼 방지 안전율
+
+const stressArea=(d,p)=>{const x=d-0.938194*p;return PI/4*x*x;};
+const tauOf=m=>MAT[m].su*0.6*(MAT[m].shear||1);
+const stripArea=(d,Le)=>0.875*PI*d*Le*KNOCK;
+const polarMod=(d,p)=>{const d3=d-1.226869*p;return PI*Math.pow(d3,3)/16;};
+
+function bearingDia(d,head,washer){
+  const w=WASHER[washer];
+  if(w&&w.dhr>0)return w.dhr*d;               // 와셔가 좌면을 지배
+  const H=HEAD[head];
+  if(H.cone)return null;                       // 원추 좌면 — 미검토
+  if(H.iso)return DHEAD[d]||1.65*d;
+  return H.dhr?H.dhr*d:null;
+}
+
+/* ══════════════════════════════════════════════════════════
+   핵심 계산
+   ══════════════════════════════════════════════════════════ */
+function compute(o,_probe){
+  const p=o.pitch, d=o.d, H=HEAD[o.head], M=MAT[o.mat], K=KF[o.k].k;
+  const washer=o.washer||"none";
+
+  let cls=o.cls, capped=false;
+  if(H.cap&&CLS_RANK.indexOf(cls)>CLS_RANK.indexOf(H.cap)){cls=H.cap;capped=true;}
+  const C=CLS[cls];
+
+  const As=stressArea(d,p), Fy=As*C.sy, Fu=As*C.su;
+
+  /* 머리 형상 제한은 축력에 먼저 적용 — 토크와 축력의 정합성 확보 */
+  const Fwant = o.preload/100*Fy;      // 제한 전 목표
+  const Fhead = Fwant*H.f;             // 머리 제한 반영
+  let Feff = Fhead;                    // 최종 적용 축력
+
+  /* 나사산 뽑힘 */
+  const hasLe = o.Le>0;
+  const Ats    = hasLe?stripArea(d,o.Le):null;
+  const Fstrip = hasLe?Ats*tauOf(o.mat):null;
+  const LeMin  = Fu/(0.875*PI*d*tauOf(o.mat)*KNOCK);
+  const margin = hasLe?Fstrip/Fhead:null;      // 제한 전 기준 = 실제 여유
+  let limited=false;
+  if(hasLe && Fstrip/STRIP_SF < Feff){ Feff=Fstrip/STRIP_SF; limited=true; }
+
+  const Trec   = K*Feff*d/1000;
+  const Tbreak = K*(hasLe?Math.min(Fu*H.f,Fstrip):Fu*H.f)*d/1000;
+
+  /* 축력 산포 (토크 고정, K가 흔들림) */
+  const Flo = Feff/(1+K_SCAT), Fhi = Feff/(1-K_SCAT);
+
+  /* 체결 중 조합응력 (인장 + 비틀림) */
+  const Wp    = polarMod(d,p);
+  const sigma = Feff/As;
+  const tau   = TG_FRAC*(K*Feff*d)/Wp;
+  const sigEq = Math.sqrt(sigma*sigma + 3*Math.pow(K_TAU*tau,2));
+  const util  = sigEq/C.sy;
+
+  /* 좌면 면압 */
+  const Db = bearingDia(d,o.head,washer);
+  let pBear=null, pRatio=null;
+  if(Db){
+    const Ab=PI/4*(Db*Db - Math.pow(1.1*d,2));
+    pBear = Fhi/Ab;                            // 상한 축력으로 검토
+    pRatio= pBear/M.pG;
+  }
+
+  /* ── 나사 고정제 · 제거 토크 ─────────────────────────
+     T_제거 = 잔존 축력에 의한 마찰분 + 고정제 이탈분
+     마찰분: 풀 때는 피치 성분이 반대로 작용 → (K·d − p/2π)
+     고정제분: TDS M10 값 × 호칭경 보정 × (실제 물림 / 표준 너트 높이) */
+  const L = LOCK[o.lock||"none"];
+  const Fserv0 = Feff*(1-EMBED);
+  const Tfric = Fserv0*(K*d - p/(2*PI))/1000;
+  let Tadh=0, Trem=null, remRatio=null;
+  if(L.bk>0){
+    const eng = hasLe ? o.Le : nutH(d);
+    Tadh = Math.max(L.bk,L.pv) * lockSizeF(d) * (eng/nutH(d)) * (M.act||0.0001);
+    Trem = Tfric + Tadh;
+  }
+
+  /* 하중 대비 축력 */
+  const Fserv = Fserv0;                // 이완 후 잔존 축력
+  let Freq=null;
+  if(o.loadType!=="none" && o.load>0){
+    Freq = o.loadType==="axial" ? SF_AXIAL*o.load : SF_SHEAR*o.load/MU_JOINT;
+  }
+
+  if(Trem!==null) remRatio = Trem/Tbreak;
+  const threads = hasLe?o.Le/p:null;
+  const thinRegime = hasLe && (threads<3 || o.Le<2.5);
+
+  /* 판정이 "적합"으로 바뀌는 최소 Le — Le에 의존하는 검토만 고려 */
+  const LeOk = Math.max(
+    2.5*Fhead/(0.875*PI*d*tauOf(o.mat)*KNOCK),   // 뽑힘 여유 2.5배
+    6*p,                                          // 유효 나사산 6산
+    M.thin?4:0,                                   // 박판 모재 최소 물림
+    LeMin                                         // 볼트가 먼저 파단하는 조건
+  );
+
+  /* ── 검토 항목 ─────────────────────────────────────────── */
+  const checks=[];
+  /* kind: "str"=구조 안전(설계 NG 가능) / "svc"=정비성(최대 주의까지)
+     정비성 항목은 모델 불확실성이 커서 설계 판정을 뒤집지 않는다. */
+  const add=(lvl,name,detail,val,kind)=>{
+    if(kind==="svc"&&lvl==="bad")lvl="warn";
+    checks.push({lvl,name,detail,val,kind:kind||"str"});
+  };
+
+  if(!hasLe) add("na","나사산 뽑힘","Le를 설정하면 검토합니다","—");
+  else if(margin<1.0) add("bad","나사산 뽑힘","목표 축력만으로도 뽑힘 — 즉시 재설계",margin.toFixed(2)+"배");
+  else if(margin<STRIP_SF) add("bad","나사산 뽑힘","여유 부족 (기준 "+STRIP_SF.toFixed(1)+"배) · 토크를 하향 제한했습니다",margin.toFixed(2)+"배");
+  else if(o.Le<LeMin) add("warn","나사산 뽑힘","여유는 확보했으나 과하중 시 볼트보다 나사산이 먼저 뽑힙니다",margin.toFixed(2)+"배");
+  else if(margin<2.5) add("warn","나사산 뽑힘","기준은 만족하나 여유가 작습니다",margin.toFixed(2)+"배");
+  else add("ok","나사산 뽑힘","탭 내력 충분 · 볼트 목 파단 지배",margin.toFixed(2)+"배");
+
+  if(!hasLe) add("na","유효 나사산 수","Le를 설정하면 검토합니다","—");
+  else if(threads<4) add("bad","유효 나사산 수","4산 미만 — 구조 안전 기준 미달",threads.toFixed(1)+"산");
+  else if(threads<6) add("warn","유효 나사산 수","6산 확보 권장",threads.toFixed(1)+"산");
+  else add("ok","유효 나사산 수","6산 이상 확보",threads.toFixed(1)+"산");
+
+  if(thinRegime)
+    add("bad","모델 적용 범위","박판·소수 나사산 — 판재 함몰/찢김이 지배. 이 계산은 근거가 되지 못합니다. 버링탭·PEM너트 검토","범위 밖");
+  else if(hasLe && MAT[o.mat].thin && o.Le<4)
+    add("warn","모델 적용 범위","박판 모재에 얕은 물림 — 실물 검증 필요","주의");
+
+  if(util>1.0) add("bad","체결 중 조합응력","인장+비틀림 등가응력이 항복 초과 — 축력 설정을 낮추세요",(util*100).toFixed(0)+"%");
+  else if(util>0.90) add("warn","체결 중 조합응력","VDI 기준 이용률 90% 초과 — 여유 없음",(util*100).toFixed(0)+"%");
+  else add("ok","체결 중 조합응력","항복 이용률 적정",(util*100).toFixed(0)+"%");
+
+  if(!Db) add("na","좌면 면압",HEAD[o.head].cone?"접시머리 원추 좌면 — 이 모델은 검토하지 않습니다":"좌면 형상 미정","—");
+  else if(pRatio>1.0) add("bad","좌면 면압","한계 면압 "+M.pG+" MPa 초과 — 모재가 함몰됩니다. 와셔를 넣거나 축력을 낮추세요",Math.round(pBear)+" MPa");
+  else if(pRatio>0.85) add("warn","좌면 면압","한계 면압에 근접 ("+M.pG+" MPa)",Math.round(pBear)+" MPa");
+  else add("ok","좌면 면압","한계 "+M.pG+" MPa 이내 (좌면 재질=탭 모재 가정)",Math.round(pBear)+" MPa");
+
+  if(L.bk>0){
+    /* 제거 시 볼트 파손 위험 */
+    if(remRatio>1.0) add("warn","분해 난이도","제거 토크가 볼트 파단 추정값을 넘습니다 — 저강도 등급(222)으로 바꾸거나 가열 분해를 전제하세요",(remRatio*100).toFixed(0)+"%","svc");
+    else if(remRatio>0.9) add("warn","분해 난이도","제거 토크가 볼트 파단 추정값에 근접 — 물림이 길수록 불리합니다. 222 검토 권장",(remRatio*100).toFixed(0)+"%","svc");
+    else if(remRatio>0.7) add("warn","분해 난이도","제거 토크가 파단 추정값의 70%를 넘습니다",(remRatio*100).toFixed(0)+"%","svc");
+    else add("ok","분해 난이도","표준 공구로 분해 가능",(remRatio*100).toFixed(0)+"%","svc");
+
+    /* 제조사 사이즈·재질 권장 범위 */
+    if(L.red&&d<8)
+      add("bad","고정제 등급 선정","적색 고강도는 M8 미만 금지 — 제거 시 볼트·나사산이 먼저 파손됩니다. 222 또는 243을 쓰세요","M"+d);
+    else if(L.red&&M.alu)
+      add("bad","고정제 등급 선정","알루미늄 탭에 적색 고강도 금지 — 제거하려면 250°C 가열이 필요하고 주물이 손상됩니다","알루미늄");
+    else if(d>L.dmax)
+      add("warn","고정제 등급 선정",L.label+"의 권장 상한은 M"+L.dmax+"입니다","M"+d);
+    else if(d<L.dmin)
+      add("warn","고정제 등급 선정",L.label+"의 권장 하한은 M"+L.dmin+" — 소경에는 222가 적합합니다","M"+d);
+    else add("ok","고정제 등급 선정","권장 범위 M"+L.dmin+"~M"+L.dmax+" 이내","M"+d);
+
+    /* 혐기성 경화 활성도 */
+    if(M.act===0) add("bad","고정제 경화","혐기성 고정제는 금속 전용입니다. 수지 모재에는 경화하지 않습니다","불가");
+    else if(M.act<1) add("warn","고정제 경화","비활성 모재 — 프라이머(SF 7471/7649) 없이는 경화가 느리고 강도가 절반 수준입니다","비활성");
+    else add("ok","고정제 경화","활성 철계 모재 — 정상 경화","활성");
+
+    /* 체결 조건 정합 */
+    if(o.k==="dry"||o.k==="sus")
+      add("warn","체결 조건 정합","고정제 도포 시 습윤 상태가 윤활로 작용합니다. 체결 조건을 '나사 고정제'로 바꾸세요",KF[o.k].label,"svc");
+  }
+
+  if(Freq===null) add("na","작용 하중 대비","하중을 입력하면 필요 축력을 검토합니다","—");
+  else if(Fserv<Freq) add("bad","작용 하중 대비","이완 후 잔존 축력 "+Math.round(Fserv).toLocaleString()+" N < 필요 "+Math.round(Freq).toLocaleString()+" N — 축력 부족",(Fserv/Freq).toFixed(2)+"배");
+  else if(Fserv<Freq*1.2) add("warn","작용 하중 대비","필요 축력을 겨우 만족",(Fserv/Freq).toFixed(2)+"배");
+  else add("ok","작용 하중 대비","필요 "+Math.round(Freq).toLocaleString()+" N 대비 충분",(Fserv/Freq).toFixed(2)+"배");
+
+  /* ── 종합 판정 ─────────────────────────────────────────── */
+  /* Le를 기준선까지 올렸을 때 실제로 적합해지는지 직접 계산해 확인.
+     좌면 면압은 뽑힘 하향 제한을 통해 Le에 간접 의존하므로 추정이 아니라 실측이 필요하다. */
+  let okPossible=true;
+  if(!_probe){
+    const t=compute(Object.assign({},o,{Le:LeOk*1.002}),true);
+    /* Le 기준선의 의미는 "구조적으로 적합해지는 지점"이다.
+       정비성 항목은 Le로 해결되지 않으므로 판정에서 제외한다. */
+    okPossible=!t.checks.some(c=>c.kind!=="svc"&&c.lvl!=="ok"&&c.lvl!=="na");
+  }
+  const nBad=checks.filter(c=>c.lvl==="bad").length;
+  const nWarn=checks.filter(c=>c.lvl==="warn").length;
+  let lvl,tag,txt;
+  if(!hasLe){
+    lvl="idle"; tag="물림 깊이를 맞추세요";
+    txt="탭 충분 가정 · 뽑힘·나사산 수는 아직 판정 전";
+  }else if(nBad){
+    lvl="bad"; tag="설계 NG";
+    txt=checks.filter(c=>c.lvl==="bad").map(c=>c.name).join(" · ")+" 부적합";
+  }else if(nWarn){
+    const w=checks.filter(c=>c.lvl==="warn");
+    const strW=w.filter(c=>c.kind!=="svc");
+    lvl="warn";
+    tag = strW.length ? "주의" : "구조 적합 · 정비 주의";
+    txt = w.map(c=>c.name).join(" · ")+" 확인 필요";
+  }else{
+    lvl="ok"; tag="적합";
+    txt="검토 항목 전부 통과 · "+(margin>=STRIP_SF?"볼트 목 파단 지배":"");
+    txt=txt.replace(/ · $/,"");
+  }
+
+  return{d,p,As,cls,capped,C,H,M,K,washer,Fy,Fu,Fwant,Fhead,Feff,Flo,Fhi,Fserv,Freq,
+         Fstrip,Ats,LeMin,LeOk,okPossible,threads,margin,limited,hasLe,Le:o.Le,
+         L,Tfric,Tadh,Trem,remRatio,
+         Trec,Tbreak,sigma,tau,sigEq,util,Db,pBear,pRatio,
+         checks,lvl,tag,txt,nBad,nWarn,thinRegime,loadType:o.loadType,load:o.load};
+}
+
+/* ══════════════════════════════════════════════════════════
+   사양 문자열 파싱
+   ══════════════════════════════════════════════════════════ */
+function parse(raw){
+  let s=(raw||"").trim().toLowerCase().replace(/\s+/g," ");
+  if(!s)return{err:"사양을 입력하세요."};
+  const out={head:null,assumed:[]};
+  if(/sems|셈스|와셔일체/.test(s)){out.head="sems";s=s.replace(/sems|셈스|와셔일체/g," ");}
+  if(/저두|low\s*head|lowhead|\blh\b/.test(s)){out.head="low";s=s.replace(/저두|low\s*head|lowhead|\blh\b/g," ");}
+  else if(/접시|csk?|flat/.test(s)){out.head="cs";s=s.replace(/접시|csk?|flat/g," ");}
+  else if(/버튼|button|btn/.test(s)){out.head="btn";s=s.replace(/버튼|button|btn/g," ");}
+  s=s.replace(/[()]/g," ").replace(/수정|기준/g," ").replace(/\s+/g," ").trim();
+  const m=s.match(/m\s*(\d+(?:\.\d+)?)/);
+  if(!m)return{err:"호칭경을 찾을 수 없습니다. 예: M5-12"};
+  out.d=parseFloat(m[1]);
+  if(out.d<1.6||out.d>24)return{err:"M1.6 ~ M24 범위만 지원합니다."};
+  const rest=s.slice(m.index+m[0].length);
+  const pm=rest.match(/^\s*[x×*]\s*(\d+(?:\.\d+)?)/);
+  if(pm)out.pitch=parseFloat(pm[1]);
+  else{
+    out.pitch=PITCH[out.d];
+    if(!out.pitch){
+      const k=Object.keys(PITCH).map(Number).sort((a,b)=>Math.abs(a-out.d)-Math.abs(b-out.d));
+      out.pitch=PITCH[k[0]];out.assumed.push("피치 추정");
+    }
+  }
+  if(out.pitch<=0||out.pitch>out.d/2)return{err:"피치 값이 유효하지 않습니다."};
+  const lm=rest.match(/[-–—]\s*(\d+(?:\.\d+)?)/)||rest.match(/\s(\d+(?:\.\d+)?)\s*$/);
+  out.len=lm?parseFloat(lm[1]):null;
+  if(!out.head){out.head="std";out.assumed.push("표준 머리 가정");}
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════
+   사내 시험 데이터
+   mat:null = 재질 미상. 시트 표1에는 행별 재질 정보가 없습니다.
+   ══════════════════════════════════════════════════════════ */
+const MEAS=[
+ {use:"Tension Block",        d:4, head:"std", Le:7.4, T:10.50, mat:null},
+ {use:"Rear Cover LED",       d:4, head:"cs",  Le:5.0, T:6.59,  mat:null},
+ {use:"Planet Reducer",       d:5, head:"std", Le:7.0, T:23.00, mat:null},
+ {use:"Motor → Reducer",      d:5, head:"std", Le:5.0, T:21.20, mat:null},
+ {use:"Reducer Pulley Plate", d:5, head:"std", Le:12.0,T:24.46, mat:null},
+ {use:"Front/Rear Panel",     d:5, head:"cs",  Le:2.0, T:6.40,  mat:null},
+ {use:"Plate → Squal Nut",    d:6, head:"std", Le:8.0, T:41.78, mat:null},
+ {use:"Driving Module",       d:6, head:"cs",  Le:11.0,T:28.76, mat:null},
+ {use:"Driving Module",       d:6, head:"cs",  Le:5.0, T:28.64, mat:null},
+ {use:"Fork Bar (A-seg)",     d:8, head:"std", Le:9.6, T:92.30, mat:null},
+ {use:"Caster",               d:8, head:"std", Le:7.0, T:84.90, mat:null},
+ {use:"Worm Gear → Frame",    d:10,head:"low", Le:12.2,T:79.98, mat:null},
+ {use:"전장박스 TAP",          d:3, head:"sems",Le:2.0, T:1.47,  mat:"SPCC", cls:"A2-70", k:"sus"},
+ {use:"전장박스 TAP",          d:4, head:"sems",Le:2.0, T:2.04,  mat:"SPCC", cls:"A2-70", k:"sus"}
+];
+/* 예측값은 사용자 설정과 무관한 상수 — 최초 1회만 계산 */
+const MEAS_PRED = MEAS.map(m=>{
+  const base={d:m.d,pitch:PITCH[m.d],cls:m.cls||"12.9",head:m.head,k:m.k||"dry",
+              washer:"none",preload:70,Le:m.Le,loadType:"none",load:0};
+  if(m.mat){
+    const r=compute(Object.assign({},base,{mat:m.mat}));
+    return {known:true, T:r.Tbreak, dev:(r.Tbreak/m.T-1)*100};
+  }
+  return {known:false,
+          hi:compute(Object.assign({},base,{mat:"S45C"})).Tbreak,
+          lo:compute(Object.assign({},base,{mat:"SS400"})).Tbreak};
+});
+
+/* ══════════════════════════════════════════════════════════
+   상태 · 유틸
+   ══════════════════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+const f1=n=>n.toFixed(1), f2=n=>n.toFixed(2);
+const f0=n=>Math.round(n).toLocaleString();
+/* 유효숫자 3자리 — 과잉 정밀도 방지 */
+const sig3=n=>{ if(!isFinite(n))return"—";
+  const a=Math.abs(n);
+  return a>=100?n.toFixed(0):a>=10?n.toFixed(1):n.toFixed(2); };
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",lock:"none",
+         preload:70,Le:0,loadType:"none",load:0,headAuto:true};
+let R=null,P=null,lastDigits="",lastSide=null;
+
+const IC={
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 6v8M12 18.2v.2"/></svg>',
+  bad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  na:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 12h12"/></svg>'
+};
+
+/* ══════════════════════════════════════════════════════════
+   렌더
+   ══════════════════════════════════════════════════════════ */
+function render(fast){
+  P=parse(S.spec);
+  const pr=$("parse");
+  if(!fast){ pr.innerHTML=""; $("clearBtn").classList.toggle("show",S.spec.length>0); }
+
+  if(P.err){
+    $("err").textContent=P.err; $("err").hidden=false;
+    setState("idle"); $("digits").textContent="—"; lastDigits="";
+    $("bandWrench").textContent=""; $("bandForce").textContent="";
+    $("vTitle").textContent="사양 입력 필요"; $("vDesc").textContent="";
+    $("vIcon").innerHTML=IC.na;
+    ["sForce","sUtil","sBreak","leRead"].forEach(i=>$(i).textContent="—");
+    $("draw").innerHTML=""; $("chkList").innerHTML=""; $("chkTags").innerHTML="";
+    buildQuick(); return;
+  }
+  $("err").hidden=true;
+  if(S.headAuto&&P.head)S.head=P.head;
+
+  R=compute({d:P.d,pitch:P.pitch,cls:S.cls,head:S.head,mat:S.mat,k:S.k,washer:S.washer,lock:S.lock,
+             preload:S.preload,Le:S.Le,loadType:S.loadType,load:S.load});
+
+  if(!fast){
+    const chip=(t,c)=>{const e=document.createElement("span");e.className="pill"+(c?" "+c:"");e.textContent=t;pr.appendChild(e);};
+    chip("M"+P.d+" × P"+P.pitch,"b");
+    chip("As "+f2(R.As)+" mm²");
+    chip(R.H.label);
+    chip(R.cls+(R.capped?" (규격 상한)":""),R.capped?"w":"");
+    if(S.washer!=="none")chip("와셔 "+WASHER[S.washer].label);
+    chip(P.len!=null?"길이 "+P.len+" · 토크 무관":"길이 미지정","mute");
+    P.assumed.forEach(t=>chip(t,"w"));
+  }
+
+  setState(R.lvl);
+  setDigits(sig3(R.Trec));
+  $("bandWrench").innerHTML="토크렌치 ±10% → <b>"+sig3(R.Trec*.9)+" ~ "+sig3(R.Trec*1.1)+"</b> N·m";
+  $("bandForce").innerHTML="실제 축력은 마찰 산포로 <b>"+f0(R.Flo)+" ~ "+f0(R.Fhi)+" N</b> 범위";
+
+  $("verdict").classList.toggle("idle",R.lvl==="idle");
+  $("vTitle").textContent=R.tag;
+  $("vDesc").textContent=R.txt;
+  $("vIcon").innerHTML=R.lvl==="ok"?IC.ok:R.lvl==="bad"?IC.bad:R.lvl==="warn"?IC.warn
+    :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5v13M6.5 13l5.5 5.5L17.5 13"/></svg>';
+  $("vIcon").querySelectorAll("path").forEach(p=>p.setAttribute("stroke","#fff"));
+
+  $("sForce").innerHTML=f0(R.Feff)+'<small>N</small>';
+  $("sUtil").innerHTML=(R.util*100).toFixed(0)+'<small>%</small>';
+  $("sBreak").innerHTML=sig3(R.Tbreak)+'<small>N·m</small>';
+
+  $("leRead").textContent=R.hasLe?f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d):"미설정";
+  $("leNote").textContent=!R.okPossible
+    ? "다른 검토 항목이 막고 있어 Le만으로는 적합해지지 않습니다"
+    : R.hasLe
+      ?(R.threads.toFixed(1)+"산 물림 · 최소 "+f1(R.LeMin)+" / 적합 "+f1(R.LeOk)+" mm")
+      :"밀어서 실제 물림 길이를 맞추세요";
+  $("leReset").hidden=!R.hasLe;
+
+  renderChecks(); renderRemoval();
+  updateSlider(); drawSection();
+  if(fast) return;                      // 드래그 중에는 여기서 종료
+  buildQuick(); buildSegs(); updateQuickNav(); ensureChipVisible();
+  $("vMat").textContent=MAT[S.mat].label;
+  $("vHead").textContent=HEAD[S.head].label;
+  $("vK").textContent=KF[S.k].label;
+  $("vWasher").textContent=WASHER[S.washer].label;
+  $("vLock").textContent=LOCK[S.lock].label;
+  $("loadClr").hidden=S.loadType==="none";
+  writeBasis(); fillMeas();
+}
+
+function setState(lvl){
+  const map={ok:["var(--ok)","var(--ok-tint)"],warn:["var(--warn)","var(--warn-tint)"],
+             bad:["var(--ng)","var(--ng-tint)"],idle:["var(--ink)","var(--surface-2)"]};
+  const [c,t]=map[lvl]||map.idle;
+  document.documentElement.style.setProperty("--st",c);
+  document.documentElement.style.setProperty("--st-tint",t);
+}
+
+function setDigits(str){
+  const el=$("digits");
+  if(str===lastDigits)return;
+  const prev=lastDigits; lastDigits=str; el.innerHTML="";
+  for(let i=0;i<str.length;i++){
+    const s=document.createElement("span");
+    s.textContent=str[i];
+    if(str[i]===".")s.className="pt";
+    if(prev[i]!==str[i])s.classList.add("roll");
+    el.appendChild(s);
+  }
+}
+
+function renderRemoval(){
+  const card=$("remCard");
+  if(!R||!R.Trem){card.hidden=true;return;}
+  card.hidden=false;
+  const L=R.L;
+  $("remGrade").textContent=L.label+" · "+(L.red?"고강도":L.bk>=12?"중강도":"저강도");
+  $("remGrade").className="rem-tag"+(L.red?" red":" blue");
+  $("remVal").textContent=sig3(R.Trem);
+  $("remRange").textContent="산포 감안 "+sig3(R.Trem*0.7)+" ~ "+sig3(R.Trem*1.3)+" N·m · 체결 토크의 "
+    +(R.Trem/R.Trec).toFixed(2)+"배";
+  $("remFric").textContent=sig3(R.Tfric);
+  $("remAdh").textContent=sig3(R.Tadh);
+  const r=R.remRatio, bar=$("remBar");
+  bar.style.width=Math.min(100,r*100)+"%";
+  bar.className=r>0.9?"b":r>0.7?"w":"";
+  $("remMark").style.left="90%";
+  const foot=$("remFoot");
+  if(r>0.9){
+    foot.className="rem-foot bad";
+    foot.innerHTML="볼트 예상 파단 <b>"+sig3(R.Tbreak)+" N·m</b>의 "+(r*100).toFixed(0)
+      +"% — 공구로 풀면 볼트가 먼저 부러집니다."+(L.red?" 250°C 가열 분해를 전제하세요.":"");
+  }else if(r>0.7){
+    foot.className="rem-foot warn";
+    foot.innerHTML="볼트 예상 파단 <b>"+sig3(R.Tbreak)+" N·m</b>의 "+(r*100).toFixed(0)+"% — 여유가 크지 않습니다.";
+  }else{
+    foot.className="rem-foot";
+    foot.innerHTML="볼트 예상 파단 <b>"+sig3(R.Tbreak)+" N·m</b>의 "+(r*100).toFixed(0)+"% — 표준 공구로 분해 가능."
+      +(R.M.act<1?" 단, 비활성 모재라 실제 강도는 더 낮을 수 있습니다.":"");
+  }
+  if(R.d<6) foot.innerHTML+=' <span style="color:var(--ink-3)">M6 미만은 TDS 실측 구간 밖이라 외삽값입니다.</span>';
+}
+
+function renderChecks(){
+  const list=$("chkList"), tags=$("chkTags");
+  list.innerHTML=""; tags.innerHTML="";
+  const n={ok:0,warn:0,bad:0,na:0};
+  R.checks.forEach(c=>{
+    n[c.lvl]++;
+    const el=document.createElement("div");
+    el.className="chk chk-"+c.lvl;
+    el.innerHTML=`<span class="chk-ic">${IC[c.lvl]}</span>
+      <span class="chk-t"><b>${esc(c.name)}</b><span>${esc(c.detail)}</span></span>
+      <span class="chk-v">${esc(c.val)}</span>`;
+    list.appendChild(el);
+  });
+  const t=(cls,txt)=>{const e=document.createElement("span");e.className="ctag "+cls;e.textContent=txt;tags.appendChild(e);};
+  if(n.bad)t("bad",n.bad+" NG");
+  if(n.warn)t("warn",n.warn+" 주의");
+  if(n.ok)t("ok",n.ok+" 적합");
+}
+
+/* ══════════════════════════════════════════════════════════
+   퀵칩 · 세그먼트
+   ══════════════════════════════════════════════════════════ */
+function buildQuick(){
+  const q=$("quick");
+  if(q.dataset.built==="1"){
+    q.querySelectorAll("[data-d]").forEach(b=>b.classList.toggle("on",P&&!P.err&&+b.dataset.d===P.d));
+    q.querySelectorAll("[data-h]").forEach(b=>b.classList.toggle("on",b.dataset.h===S.head));
+    return;
+  }
+  q.innerHTML="";
+  SIZES.forEach(d=>{
+    const b=document.createElement("button");
+    b.className="qchip"; b.dataset.d=d; b.textContent="M"+d;
+    b.onclick=()=>{const len=P&&P.len!=null?"-"+P.len:"";
+      const h=S.head!=="std"?" "+HEAD[S.head].label.replace(" CS",""):"";
+      S.spec="M"+d+h+len; $("spec").value=S.spec; S.headAuto=true; render();};
+    q.appendChild(b);
+  });
+  const dv=document.createElement("div"); dv.className="qdiv"; q.appendChild(dv);
+  Object.keys(HEAD).forEach(h=>{
+    const b=document.createElement("button");
+    b.className="qchip"; b.dataset.h=h; b.textContent=HEAD[h].label;
+    b.onclick=()=>{S.head=h;S.headAuto=false;render();};
+    q.appendChild(b);
+  });
+  q.dataset.built="1"; buildQuick();
+}
+
+/* 가로 스크롤 상태 → 페이드·화살표 노출 제어 */
+function updateQuickNav(){
+  const q=$("quick"), w=$("quickWrap");
+  if(!q||!w)return;
+  const slack=q.scrollWidth-q.clientWidth;
+  w.classList.toggle("can-l",slack>2 && q.scrollLeft>2);
+  w.classList.toggle("can-r",slack>2 && q.scrollLeft<slack-2);
+}
+/* 선택된 칩이 잘려 있으면 보이는 위치로 (페이지 스크롤 건드리지 않음) */
+function ensureChipVisible(){
+  const q=$("quick"); if(!q)return;
+  const el=q.querySelector(".qchip.on[data-d]"); if(!el)return;
+  const l=el.offsetLeft, r=l+el.offsetWidth, pad=46;
+  if(l<q.scrollLeft+pad) q.scrollTo({left:Math.max(0,l-pad),behavior:"smooth"});
+  else if(r>q.scrollLeft+q.clientWidth-pad) q.scrollTo({left:r-q.clientWidth+pad,behavior:"smooth"});
+}
+(function quickNav(){
+  const q=$("quick");
+  const step=dir=>{
+    const d=Math.max(120,q.clientWidth*0.7);
+    q.scrollTo({left:q.scrollLeft+dir*d,behavior:"smooth"});
+  };
+  $("qPrev").onclick=()=>step(-1);
+  $("qNext").onclick=()=>step(1);
+  q.addEventListener("scroll",updateQuickNav,{passive:true});
+})();
+
+function buildSegs(){
+  seg("segCls","indCls",CLS_SEG,S.cls,v=>CLS[v].label,v=>{S.cls=v;render();});
+  seg("segPl","indPl",PL_SEG,S.preload,v=>v+"%",v=>{S.preload=+v;render();});
+  seg("segLoad","indLoad",LOAD_SEG.map(o=>o.v),S.loadType,
+      v=>LOAD_SEG.find(o=>o.v===v).label,
+      v=>{S.loadType=v; if(v==="none"){S.load=0;$("load").value="";} render();});
+}
+function seg(id,indId,items,cur,lbl,cb){
+  const el=$(id);
+  if(el.dataset.built!=="1"){
+    items.forEach(v=>{
+      const b=document.createElement("button");
+      b.textContent=lbl(v); b.dataset.v=v;
+      b.onclick=()=>cb(v);
+      el.appendChild(b);
+    });
+    el.dataset.built="1";
+  }
+  const btns=[...el.querySelectorAll("button")];
+  btns.forEach((b,i)=>{
+    const on=String(items[i])===String(cur);
+    b.classList.toggle("on",on);
+    if(on){const ind=$(indId); ind.style.left=b.offsetLeft+"px"; ind.style.width=b.offsetWidth+"px";}
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   단면도
+   ══════════════════════════════════════════════════════════ */
+function drawSection(){
+  if(!R){$("draw").innerHTML="";return;}
+  const W=340,cy=76, plateL=52, blkL=118, blkR=334;
+  const rMaj=Math.max(8,Math.min(17,6+R.d*0.9));
+  const cap=rMaj*1.45, bh=Math.max(30,rMaj+13);
+  const wOn=S.washer!=="none";
+  const wThk=wOn?5:0;
+  const wRad=wOn?Math.min(bh-2,Math.max(cap*1.25,rMaj*WASHER[S.washer].dhr*0.55)):0;
+  const hw=R.H.cone?0:(S.head==="low"?9:16);
+  const headR=plateL-wThk;                     // 머리 우측 끝
+  const Le=R.hasLe?R.Le:R.LeOk;
+  const scale=Math.min(12,(blkR-blkL-34)/Math.max(Le,4));
+  const eng=Math.max(16,Le*scale);
+  const idle=!R.hasLe;
+  const col=idle?"#8593A8":R.lvl==="bad"?"#D92D20":R.lvl==="warn"?"#C77700":"#0B8A5B";
+  const g=[]; const N=(x,y)=>x.toFixed(1)+","+y.toFixed(1);
+
+  /* 탭 모재 */
+  g.push(`<rect x="${blkL}" y="${cy-bh}" width="${blkR-blkL}" height="${bh*2}" rx="8" fill="#E9EEF4"/>`);
+  g.push(`<rect x="${blkL}" y="${cy-rMaj-2}" width="${eng+14}" height="${rMaj*2+4}" rx="3" fill="#F8FAFB"/>`);
+  /* 체결 부재 (클램프 판) */
+  g.push(`<rect x="${plateL}" y="${cy-bh}" width="${blkL-plateL}" height="${bh*2}" rx="6" fill="#DFE6EF"/>`);
+  g.push(`<rect x="${plateL}" y="${cy-rMaj-2.5}" width="${blkL-plateL}" height="${rMaj*2+5}" fill="#F8FAFB"/>`);
+  /* 볼트 몸통 */
+  g.push(`<rect x="${headR}" y="${cy-rMaj}" width="${blkL-headR+eng}" height="${rMaj*2}" rx="2.5" fill="#BCCDE6"/>`);
+  /* 와셔 */
+  if(wOn) g.push(`<rect x="${plateL-wThk}" y="${cy-wRad}" width="${wThk}" height="${wRad*2}" rx="1.5" fill="#8FA6C4"/>`);
+  /* 머리 */
+  if(R.H.cone)
+    g.push(`<polygon points="${N(headR-20,cy-cap)} ${N(headR,cy-rMaj)} ${N(headR,cy+rMaj)} ${N(headR-20,cy+cap)}" fill="#2B3A57"/>`);
+  else
+    g.push(`<rect x="${headR-hw}" y="${cy-cap}" width="${hw}" height="${cap*2}" rx="2.5" fill="#2B3A57"/>`);
+
+  /* 물린 나사산 */
+  const n=Math.max(1,Math.min(26,Math.round(Le/R.p)));
+  const step=eng/n, rr=Math.max(1.6,Math.min(2.7,step*0.24));
+  for(let i=0;i<n;i++){
+    const x=blkL+i*step+step*.5;
+    g.push(`<circle cx="${x.toFixed(1)}" cy="${cy-rMaj}" r="${rr.toFixed(1)}" fill="${col}"/>`);
+    g.push(`<circle cx="${x.toFixed(1)}" cy="${cy+rMaj}" r="${rr.toFixed(1)}" fill="${col}"/>`);
+  }
+  const strip=R.hasLe&&R.margin<STRIP_SF;
+  if(strip){
+    g.push(`<line x1="${blkL}" y1="${cy-rMaj-5}" x2="${blkL+eng}" y2="${cy-rMaj-5}" stroke="#D92D20" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${blkL}" y1="${cy+rMaj+5}" x2="${blkL+eng}" y2="${cy+rMaj+5}" stroke="#D92D20" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
+  }else if(R.hasLe){
+    g.push(`<line x1="${blkL-6}" y1="${cy-rMaj-8}" x2="${blkL-6}" y2="${cy+rMaj+8}" stroke="#8593A8" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
+  }
+  /* 좌면 압괴 경고 */
+  const bear=R.checks.find(c=>c.name==="좌면 면압");
+  if(bear&&bear.lvl==="bad")
+    g.push(`<path d="M${N(plateL+2,cy-bh-3)} L${N(plateL+2,cy-rMaj-4)}" stroke="#D92D20" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/>`)
+    ,g.push(`<text x="${plateL+6}" y="${cy-bh-6}" font-size="9.5" font-weight="700" fill="#D92D20">좌면 압괴</text>`);
+
+  const modeTxt=idle?"":strip?"뽑힘 지배":"볼트 목 파단";
+  g.push(`<text x="${blkL+eng/2}" y="${cy-rMaj-14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${col}">${n}산 물림${modeTxt?" · "+modeTxt:""}</text>`);
+
+  const dy=cy+bh+18;
+  g.push(`<path d="M${N(blkL,dy-5)} L${N(blkL,dy+5)} M${N(blkL+eng,dy-5)} L${N(blkL+eng,dy+5)}" stroke="${col}" stroke-width="1.4" stroke-linecap="round"/>`);
+  g.push(`<line x1="${blkL}" y1="${dy}" x2="${blkL+eng}" y2="${dy}" stroke="${col}" stroke-width="1.6" stroke-linecap="round"/>`);
+  g.push(`<text x="${blkL+eng/2}" y="${dy+17}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${col}">Le ${f1(Le)} mm</text>`);
+  if(idle)g.push(`<text x="${blkL+eng/2}" y="${dy+32}" text-anchor="middle" font-size="10" font-weight="600" fill="#8593A8">적합 기준값 · 아직 미설정</text>`);
+  if(wOn)g.push(`<text x="${plateL-2}" y="${dy+17}" text-anchor="end" font-size="10" font-weight="600" fill="#5E7290">${WASHER[S.washer].label}</text>`);
+  g.push(`<text x="${W-4}" y="14" text-anchor="end" font-size="10.5" font-weight="600" fill="#8593A8">${MAT[S.mat].label} · τu ${Math.round(tauOf(S.mat))} MPa</text>`);
+  $("draw").innerHTML=g.join("");
+}
+
+/* ══════════════════════════════════════════════════════════
+   슬라이더
+   ══════════════════════════════════════════════════════════ */
+const leMax=()=>P&&!P.err?Math.max(P.d*3.2,8):16;
+function updateSlider(){
+  if(!R)return;
+  const max=leMax(), t=$("track"), w=t.clientWidth||300;
+  const at=v=>Math.max(0,Math.min(1,v/max))*w;
+  const px=at(R.hasLe?R.Le:R.LeOk);
+  $("thumb").style.left=px+"px";
+  $("thumb").classList.toggle("ghost",!R.hasLe);
+  $("fill").style.width=(R.hasLe?px:0)+"px";
+
+  const pMin=at(R.LeMin), pOk=at(R.LeOk);
+  $("tickMin").style.left=pMin+"px";
+  $("tickOk").style.left=pOk+"px";
+  /* 라벨은 양 끝에서 잘리지 않도록 클램프 */
+  const clamp=(x,pad)=>Math.max(pad,Math.min(w-pad,x));
+  $("lblMin").style.left=clamp(pMin,20)+"px";
+  $("lblOk").style.left=clamp(pOk,32)+"px";
+  /* 두 라벨이 겹치면 '최소'를 숨긴다 */
+  $("lblMin").classList.toggle("hide",Math.abs(pOk-pMin)<58);
+  /* Le만으로는 적합해질 수 없으면 기준선을 흐리고 문구를 바꾼다 */
+  $("lblOk").textContent=R.okPossible?"적합 기준":"Le 기준";
+  $("lblOk").classList.toggle("blocked",!R.okPossible);
+  $("tickOk").classList.toggle("blocked",!R.okPossible);
+
+  t.setAttribute("aria-valuenow",R.hasLe?f1(R.Le):0);
+  t.setAttribute("aria-valuemax",f1(max));
+  t.setAttribute("aria-valuetext",R.hasLe
+    ?f1(R.Le)+"mm, "+R.threads.toFixed(1)+"산, 판정 "+R.tag
+    :"미설정, 적합 기준 "+f1(R.LeOk)+"mm");
+}
+(function slider(){
+  const t=$("track"); let drag=false,pid=null;
+  const val=x=>{const r=t.getBoundingClientRect();
+    return Math.round(Math.max(0,Math.min(1,(x-r.left)/r.width))*leMax()*10)/10;};
+  const set=(x,haptic)=>{
+    const v=Math.max(.1,val(x));
+    const wasOk=R&&R.lvl==="ok";
+    S.Le=v; render(true);
+    const nowOk=R&&R.lvl==="ok";
+    if(haptic&&lastSide!==null&&nowOk!==wasOk){
+      const th=$("thumb"); th.classList.add("pulse");
+      setTimeout(()=>th.classList.remove("pulse"),260);
+      if(navigator.vibrate)try{navigator.vibrate(nowOk?[10,40,16]:12)}catch(e){}
+      if(nowOk){                       // 적합 진입 순간에만 "탁!"
+        const sn=$("snap"); sn.style.left=th.style.left;
+        sn.classList.remove("go"); void sn.offsetWidth; sn.classList.add("go");
+      }
+    }
+    lastSide=nowOk;
+  };
+  let raf=null,px=null;
+  t.addEventListener("pointerdown",e=>{
+    drag=true; pid=e.pointerId; lastSide=(R&&R.hasLe)?R.lvl==="ok":null;
+    set(e.clientX,false); try{t.setPointerCapture(e.pointerId)}catch(_){} e.preventDefault();
+  });
+  window.addEventListener("pointermove",e=>{
+    if(!drag||(pid!==null&&e.pointerId!==pid))return;
+    px=e.clientX;
+    if(raf)return;                       // 프레임당 1회로 제한
+    raf=requestAnimationFrame(()=>{raf=null;if(drag)set(px,true);});
+  },{passive:true});
+  const end=()=>{
+    if(!drag)return; drag=false; lastSide=null;
+    if(raf){cancelAnimationFrame(raf);raf=null;}
+    try{if(pid!==null)t.releasePointerCapture(pid)}catch(_){} pid=null;
+    render();                            // 드래그 종료 시 전체 갱신
+  };
+  window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
+  t.addEventListener("keydown",e=>{
+    const st=P&&!P.err?Math.max(.1,Math.round(P.d)/10):.5;
+    if(e.key==="ArrowRight"||e.key==="ArrowUp"){S.Le=Math.round((S.Le+st)*10)/10;render();e.preventDefault();}
+    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){S.Le=Math.max(0,Math.round((S.Le-st)*10)/10);render();e.preventDefault();}
+    if(e.key==="Home"){S.Le=0;render();e.preventDefault();}
+  });
+})();
+$("leReset").onclick=()=>{S.Le=0;render();};
+
+/* ══════════════════════════════════════════════════════════
+   계산 근거
+   ══════════════════════════════════════════════════════════ */
+function writeBasis(){
+  if(!R)return;
+  const b=[];
+  b.push(`<span class="st">1 · 볼트 유효단면적</span>As = π/4 × (${R.d} − 0.938194 × ${R.p})² = <b>${f2(R.As)} mm²</b>`);
+  b.push(`<span class="st">2 · 강도구분 ${R.cls}</span>σy ${R.C.sy} MPa · σu ${R.C.su} MPa`
+    +(R.capped?`<br><span class="wr">${R.H.label} 규격 상한으로 ${S.cls} → ${R.cls} 하향</span>`:""));
+  let s3=`<span class="st">3 · 축력</span>목표 = ${S.preload}% × ${f2(R.As)} × ${R.C.sy} = ${f0(R.Fwant)} N`;
+  if(R.H.f<1) s3+=`<br>머리 형상 계수 ×${R.H.f.toFixed(2)} → ${f0(R.Fhead)} N <span class="mut">(경험 근사값)</span>`;
+  if(R.limited) s3+=`<br><span class="bad">뽑힘 안전율 ${STRIP_SF.toFixed(1)} 확보를 위해 <b>${f0(R.Feff)} N</b>으로 하향 제한</span>`;
+  else s3+=`<br>적용 축력 <b>${f0(R.Feff)} N</b>`;
+  s3+=`<br><span class="mut">마찰 산포 ±${K_SCAT*100}% → 실제 ${f0(R.Flo)} ~ ${f0(R.Fhi)} N</span>`;
+  b.push(s3);
+  b.push(`<span class="st">4 · 체결토크</span>T = ${R.K} × ${f0(R.Feff)} × ${R.d} = <b>${sig3(R.Trec)} N·m</b>`);
+  b.push(`<span class="st">5 · 체결 중 조합응력</span>인장 σ = ${R.sigma.toFixed(0)} MPa · 비틀림 τ = ${R.tau.toFixed(0)} MPa<br>`
+    +`σeq = √(σ² + 3(0.5τ)²) = <b>${R.sigEq.toFixed(0)} MPa</b> = 항복의 `
+    +`<span class="${R.util>1?"bad":R.util>0.92?"wr":"good"}">${(R.util*100).toFixed(0)}%</span>`
+    +`<br><span class="mut">나사부 토크 비율 ${TG_FRAC}, 비틀림 감소계수 ${K_TAU} (VDI 2230)</span>`);
+  if(R.hasLe){
+    b.push(`<span class="st">6 · 나사산 뽑힘</span>모재 ${R.M.label} · τu = 0.6 × ${R.M.su} = ${Math.round(tauOf(S.mat))} MPa<br>`
+      +`Ats = 0.875 × π × ${R.d} × ${f1(R.Le)} × ${KNOCK} = ${f2(R.Ats)} mm²<br>`
+      +`탭 내력 <b>${f0(R.Fstrip)} N</b> / 축력 ${f0(R.Fhead)} N = 여유 `
+      +`<span class="${R.margin<STRIP_SF?"bad":"good"}">${f2(R.margin)}배</span>`
+      +`<br><span class="mut">보정계수 ${KNOCK}은 경험 근사값 — 실물 검증 필요</span>`);
+  }else{
+    b.push(`<span class="st">6 · 나사산 뽑힘</span><span class="wr">Le 미설정으로 미실시.</span>`);
+  }
+  if(R.Db){
+    b.push(`<span class="st">7 · 좌면 면압</span>좌면 지름 ${f1(R.Db)} mm${S.washer!=="none"?" (와셔 기준)":""}<br>`
+      +`p = ${f0(R.Fhi)} N ÷ 면적 = <b>${Math.round(R.pBear)} MPa</b> / 한계 ${R.M.pG} MPa `
+      +`<span class="${R.pRatio>1?"bad":R.pRatio>0.85?"wr":"good"}">(${(R.pRatio*100).toFixed(0)}%)</span>`
+      +`<br><span class="mut">축력 상한값으로 보수 검토</span>`);
+  }else{
+    b.push(`<span class="st">7 · 좌면 면압</span><span class="wr">${R.H.cone?"접시머리 원추 좌면 — 미검토":"좌면 형상 미정"}</span>`);
+  }
+  if(R.Freq!==null){
+    const need=S.loadType==="axial"
+      ? `필요 축력 = ${SF_AXIAL} × ${f0(S.load)} N`
+      : `필요 축력 = ${SF_SHEAR} × ${f0(S.load)} ÷ μ ${MU_JOINT}`;
+    b.push(`<span class="st">8 · 작용 하중 대비</span>${need} = <b>${f0(R.Freq)} N</b><br>`
+      +`이완 후 잔존 축력 = ${f0(R.Feff)} × (1 − ${EMBED}) = ${f0(R.Fserv)} N `
+      +`<span class="${R.Fserv<R.Freq?"bad":"good"}">(${f2(R.Fserv/R.Freq)}배)</span>`);
+  }
+  b.push(`<span class="st">9 · 필요 최소 물림</span>Le,min = <b>${f1(R.LeMin)} mm</b> = ${f2(R.LeMin/R.d)}d`);
+  $("basis").innerHTML=b.join("<hr>");
+}
+
+/* ══════════════════════════════════════════════════════════
+   실측 대조 — 행별 재질 고정. 미상은 범위로 표기하고 편차 계산 안 함
+   ══════════════════════════════════════════════════════════ */
+function fillMeas(){
+  if(!R)return;
+  const rows=MEAS.filter(m=>m.d===R.d), tb=$("measBody");
+  $("measCnt").textContent=rows.length?rows.length+"건":"—";
+  tb.innerHTML="";
+  if(!rows.length){
+    tb.innerHTML=`<tr><td colspan="5" class="mut" style="text-align:center;padding:18px">M${R.d} 시험 데이터 없음</td></tr>`;
+    $("measSumm").textContent=""; $("measWarn").textContent=""; return;
+  }
+  const devs=[]; let unknown=0; const html=[];
+  MEAS.forEach((m,i)=>{
+    if(m.d!==R.d)return;
+    const q=MEAS_PRED[i];
+    const head=`<td>${m.use}<br><span class="mut" style="font-size:11px">${HEAD[m.head].label} · ${m.mat||"재질 미상"}</span></td>`
+      +`<td class="mut">${f1(m.Le)}</td><td><b>${m.T.toFixed(2)}</b></td>`;
+    if(q.known){
+      devs.push(q.dev);
+      const cl=Math.abs(q.dev)<20?"d-ok":Math.abs(q.dev)<40?"d-mid":"d-bad";
+      html.push(`<tr>${head}<td class="mut">${sig3(q.T)}</td><td class="${cl}">${q.dev>0?"+":""}${q.dev.toFixed(0)}%</td></tr>`);
+    }else{
+      unknown++;
+      html.push(`<tr>${head}<td class="mut">${sig3(q.lo)}~${sig3(q.hi)}</td><td class="mut">산출 불가</td></tr>`);
+    }
+  });
+  tb.innerHTML=html.join("");
+  if(devs.length){
+    const avg=devs.reduce((a,b)=>a+b,0)/devs.length;
+    $("measSumm").innerHTML=`재질이 확인된 ${devs.length}건 평균 편차 <b>${avg>0?"+":""}${avg.toFixed(0)}%</b>. `
+      +`예상 파단은 원리적으로 정밀도가 낮으므로 ±20~40%는 정상 범위입니다.`;
+  }else $("measSumm").textContent="";
+  $("measWarn").innerHTML=unknown
+    ? `<b>${unknown}건은 행별 모재가 기록되어 있지 않습니다.</b> 예상값을 S45C~SS400 범위로만 표시하고 편차는 계산하지 않았습니다. `
+      +`알루미늄이면 값이 절반 이하로 내려가 결론이 완전히 뒤집힙니다. <b>행별 재질 기록이 이 시험의 가장 시급한 보완 사항입니다.</b>`
+    : "";
+}
+
+/* ══════════════════════════════════════════════════════════
+   바텀시트
+   ══════════════════════════════════════════════════════════ */
+let sheetMode=null;
+function openSheet(mode){
+  sheetMode=mode;
+  const body=$("sheetBody");
+  body.innerHTML="";
+  $("sheetTitle").textContent={mat:"탭 모재",head:"머리 형상",k:"체결 조건",washer:"와셔",lock:"나사 고정제"}[mode];
+  const opt=(on,t,d,cb)=>{
+    const b=document.createElement("button");
+    b.className="opt"+(on?" on":"");
+    b.innerHTML=`<span><span class="t">${esc(t)}</span>${d?`<span class="d">${esc(d)}</span>`:""}</span>
+      <svg class="tk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+    b.onclick=cb; body.appendChild(b);
+  };
+  const strip=t=>body.insertAdjacentHTML("beforeend",
+    `<div class="warn-strip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.2"/><circle cx="12" cy="12" r="9"/></svg>${t}</div>`);
+
+  if(mode==="mat"){
+    strip("알루미늄은 필요 물림 깊이가 강재의 약 2배이고 한계 면압도 낮습니다. 실제 재질로 반드시 바꾸세요.");
+    Object.entries(MAT).forEach(([k,v])=>opt(S.mat===k,v.label,v.desc+" · σu "+v.su+" / 한계면압 "+v.pG+" MPa",
+      ()=>{S.mat=k;closeSheet();render();}));
+  }else if(mode==="head"){
+    strip("접시·저두·버튼의 제한계수는 규격 실측값이 아니라 경험 근사값입니다.");
+    Object.entries(HEAD).forEach(([k,v])=>opt(S.head===k,v.full,v.note,
+      ()=>{S.head=k;S.headAuto=false;closeSheet();render();}));
+  }else if(mode==="k"){
+    Object.entries(KF).forEach(([k,v])=>opt(S.k===k,v.label,v.desc,()=>{S.k=k;closeSheet();render();}));
+  }else if(mode==="lock"){
+    strip("수치는 Henkel TDS 공칭값(M10·강재·24h·ISO 10964)입니다. 실제 제품 TDS로 반드시 대조하세요.");
+    Object.entries(LOCK).forEach(([k,v])=>opt(S.lock===k,v.full,
+      v.bk>0?v.desc+" · M10 이탈 "+v.bk+" N·m ("+v.src+")":v.desc,
+      ()=>{S.lock=k;closeSheet();render();}));
+  }else if(mode==="washer"){
+    strip("연질 모재(알루미늄·SPCC·수지)에 고강도 볼트를 쓰면 와셔 없이는 좌면이 함몰됩니다.");
+    Object.entries(WASHER).forEach(([k,v])=>opt(S.washer===k,v.label,v.desc,()=>{S.washer=k;closeSheet();render();}));
+  }
+  const sh=$("sheet");
+  $("scrim").classList.add("on"); sh.classList.add("on");
+  sh.removeAttribute("aria-hidden"); sh.removeAttribute("inert");
+  document.body.style.overflow="hidden";
+}
+function closeSheet(){
+  const sh=$("sheet");
+  $("scrim").classList.remove("on"); sh.classList.remove("on");
+  sh.setAttribute("aria-hidden","true"); sh.setAttribute("inert","");
+  document.body.style.overflow=""; sheetMode=null; sh.style.transform="";
+}
+document.querySelectorAll("[data-sheet]").forEach(b=>b.onclick=()=>openSheet(b.dataset.sheet));
+$("scrim").onclick=closeSheet; $("sheetX").onclick=closeSheet;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheetMode)closeSheet();});
+
+(function swipe(){
+  const g=$("grab"), sh=$("sheet"); let sy=0,drag=false,dy=0;
+  g.addEventListener("pointerdown",e=>{drag=true;sy=e.clientY;dy=0;sh.style.transition="none";
+    try{g.setPointerCapture(e.pointerId)}catch(_){} e.preventDefault();});
+  window.addEventListener("pointermove",e=>{if(!drag)return;dy=Math.max(0,e.clientY-sy);
+    sh.style.transform="translateY("+dy+"px)";},{passive:true});
+  const end=()=>{if(!drag)return;drag=false;sh.style.transition="";
+    if(dy>90)closeSheet(); else sh.style.transform="";};
+  window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
+})();
+
+/* ══════════════════════════════════════════════════════════
+   기타 인터랙션
+   ══════════════════════════════════════════════════════════ */
+document.querySelectorAll("[data-acc]").forEach(b=>{
+  b.onclick=()=>{const a=$(b.dataset.acc);a.classList.toggle("open");
+    b.setAttribute("aria-expanded",a.classList.contains("open"));};
+});
+let toastT=null;
+function toast(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("on");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),1900);
+}
+$("copyBtn").onclick=async()=>{
+  if(!R)return;
+  const txt=sig3(R.Trec)+" N·m";
+  try{await navigator.clipboard.writeText(txt);toast(txt+" 복사됨");}
+  catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{document.execCommand("copy");toast(txt+" 복사됨");}catch(_){toast("복사할 수 없습니다");}
+    document.body.removeChild(ta);
+  }
+  if(navigator.vibrate)try{navigator.vibrate(8)}catch(e){}
+};
+$("spec").addEventListener("input",e=>{S.spec=e.target.value;S.headAuto=true;render();});
+$("spec").addEventListener("focus",e=>e.target.select());
+$("clearBtn").onclick=()=>{S.spec="";$("spec").value="";$("spec").focus();render();};
+$("load").addEventListener("input",e=>{
+  S.load=Math.max(0,parseFloat(e.target.value)||0);
+  if(S.load>0&&S.loadType==="none")S.loadType="axial";
+  render();
+});
+$("loadClr").onclick=()=>{S.loadType="none";S.load=0;$("load").value="";render();};
+
+const bar=$("bar");
+addEventListener("scroll",()=>bar.classList.toggle("stuck",scrollY>4),{passive:true});
+addEventListener("resize",()=>{updateSlider();buildSegs();updateQuickNav();});
+
+(function init(){
+  render();
+  requestAnimationFrame(()=>{buildSegs();updateSlider();updateQuickNav();});
+})();
+</script>
+</body>
+</html>
