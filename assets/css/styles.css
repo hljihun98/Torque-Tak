@@ -342,8 +342,12 @@ th:last-child,td:last-child{padding-right:0}
   .card:first-child,.acc:first-child{margin-top:12px}
   #spec{font-size:38px}
   .digits{font-size:64px}
-  .qnav{width:38px;height:38px;margin-top:-19px}
-  .qnav svg{width:16px;height:16px}
+  /* 퀵칩 — 가로 스크롤 대신 두 줄 (1줄 호칭경 · 2줄 머리 형상).
+     구분선을 폭 100%·높이 0으로 바꿔 줄바꿈 지점으로 쓴다. */
+  .quick{flex-wrap:wrap;overflow-x:visible;row-gap:8px}
+  .qdiv{width:100%;height:0;margin:0;background:none}
+  .quick-wrap .qnav,.quick-wrap.can-l .qnav-l,.quick-wrap.can-r .qnav-r{display:none}
+  .quick-wrap::before,.quick-wrap::after{content:none}
   .track{height:52px}
   .thumb{width:32px;height:32px;margin:-16px 0 0 -16px}
   /* 데스크톱에서는 시트를 중앙 모달로 */
