@@ -566,7 +566,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",lock:"none",
          preload:70,Le:0,loadType:"none",load:0,headAuto:true,
          shank:0,slevel:"embed",     // shank 0 = 비나사부 미고려
-         lenSlider:false};           // 볼트 길이도 슬라이더로 조절할지 (선택)
+         lenSlider:true};            // 볼트 길이도 슬라이더로 조절할지 (선택 · 기본 켜짐)
 let R=null,P=null,lastDigits="",lastSide=null;
 
 const IC={
