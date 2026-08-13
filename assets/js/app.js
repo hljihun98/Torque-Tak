@@ -568,7 +568,7 @@ const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",loc
          shank:0,slevel:"embed",     // shank 0 = 비나사부 미고려
          lenSlider:true,             // 볼트 길이도 슬라이더로 조절할지 (선택 · 기본 켜짐)
          grip:0};                    // 유지되는 체결 두께 — 길이를 바꾸면 물림이 이걸 기준으로 따라온다
-let R=null,P=null,lastDigits="",lastSide=null;
+let R=null,P=null,lastDigits="",lastSide=null,lastLvl=null,lastIcon=null;
 
 const IC={
   ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -590,7 +590,7 @@ function render(fast){
     setState("idle"); $("digits").textContent="—"; lastDigits="";
     $("bandWrench").textContent=""; $("bandForce").textContent="";
     $("vTitle").textContent="사양 입력 필요"; $("vDesc").textContent="";
-    $("vIcon").innerHTML=IC.na;
+    $("vIcon").innerHTML=IC.na; lastIcon=null;   // 직접 덮었으니 가드도 풀어둬야 복구된다
     ["sForce","sUtil","sBreak","leRead"].forEach(i=>$(i).textContent="—");
     $("draw").innerHTML=""; $("chkList").innerHTML=""; $("chkTags").innerHTML="";
     buildQuick(); return;
@@ -637,9 +637,12 @@ function render(fast){
   $("verdict").classList.toggle("idle",R.lvl==="idle");
   $("vTitle").textContent=R.tag;
   $("vDesc").textContent=R.txt;
-  $("vIcon").innerHTML=R.lvl==="ok"?IC.ok:R.lvl==="bad"?IC.bad:R.lvl==="warn"?IC.warn
-    :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5v13M6.5 13l5.5 5.5L17.5 13"/></svg>';
-  $("vIcon").querySelectorAll("path").forEach(p=>p.setAttribute("stroke","#fff"));
+  if(R.lvl!==lastIcon){                 // 아이콘은 판정이 바뀔 때만 다시 만든다
+    lastIcon=R.lvl;
+    $("vIcon").innerHTML=R.lvl==="ok"?IC.ok:R.lvl==="bad"?IC.bad:R.lvl==="warn"?IC.warn
+      :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5v13M6.5 13l5.5 5.5L17.5 13"/></svg>';
+    $("vIcon").querySelectorAll("path").forEach(p=>p.setAttribute("stroke","#fff"));
+  }
 
   $("sForce").innerHTML=f0(R.Feff)+'<small>N</small>';
   $("sUtil").innerHTML=(R.util*100).toFixed(0)+'<small>%</small>';
@@ -701,6 +704,10 @@ function updateShankUI(){
 }
 
 function setState(lvl){
+  /* :root 커스텀 프로퍼티를 건드리면 이걸 쓰는 문서 전체가 스타일 재계산에 들어간다.
+     드래그 중에는 판정이 그대로인 프레임이 대부분이라 바뀔 때만 쓴다. */
+  if(lvl===lastLvl)return;
+  lastLvl=lvl;
   const map={ok:["var(--ok)","var(--ok-tint)"],warn:["var(--warn)","var(--warn-tint)"],
              bad:["var(--ng)","var(--ng-tint)"],idle:["var(--ink)","var(--surface-2)"]};
   const [c,t]=map[lvl]||map.idle;
@@ -980,14 +987,17 @@ const leMax=()=>P&&!P.err?Math.max(P.d*3.2,8):16;
    Le 슬라이더는 반대로 길이를 두고 체결 두께를 바꾼다. */
 const headHOf =()=>(P&&!P.err&&HEAD[S.head].cone)?cskHead(P.d):0;
 const lenOn   =()=>S.lenSlider&&!!P&&!P.err;
-const snapLen =v=>BOLT_LEN.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
+const snapIn  =(list,v)=>list.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
 /* 머리 밑에서 쓸 수 있는 길이 = 체결 두께 + 물림 */
 const availLen=()=>(P&&!P.err&&P.len!=null)?P.len-headHOf():null;
 /* 볼트 길이 슬라이더 상한 — 호칭경 기준으로 잡고 표준 길이에 맞춘다 */
 const lenMax  =()=>{const t=Math.max(25,8*(P&&!P.err?P.d:5));
                     return BOLT_LEN.find(v=>v>=t)||BOLT_LEN[BOLT_LEN.length-1];};
-/* 판재는 최소한 관통해야 하므로 이 아래로는 못 줄인다 — 슬라이더 눈금으로도 쓴다 */
-const lenMin  =()=>headHOf()+Math.max(0,S.grip);
+/* 판재는 최소한 관통해야 하므로 이 아래로는 못 줄인다 — 슬라이더 눈금으로도 쓴다.
+   물림이 미설정이면 체결 두께도 아직 뜻이 없으므로 바닥을 걸지 않는다. */
+const lenMin  =()=>headHOf()+(S.Le>0?Math.max(0,S.grip):0);
+/* 바닥을 만족하는 표준 길이 목록 — 없으면 길이를 건드리지 않는다 */
+const lenPicks=()=>BOLT_LEN.filter(x=>x>=lenMin());
 /* 사양 문자열을 다시 쓰되 비표준 피치와 머리 표기는 보존한다 */
 function specWithLen(len){
   const h=S.head!=="std"?" "+HEAD[S.head].label.replace(" CS",""):"";
@@ -995,10 +1005,9 @@ function specWithLen(len){
   return "M"+P.d+pit+h+"-"+len;
 }
 function setBoltLen(v){
-  /* 판재를 관통 못 하는 길이는 후보에서 뺀다 — 그 아래로 가면 체결 두께가 깎인다 */
-  const floor=lenMin();
-  const ok=BOLT_LEN.filter(x=>x>=floor);
-  const L=ok.length?ok.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a):snapLen(v);
+  const ok=lenPicks();
+  if(!ok.length)return false;            // 판재를 관통하는 표준 길이가 없다
+  const L=snapIn(ok,v);
   if(P.len===L)return false;
   S.spec=specWithLen(L); $("spec").value=S.spec;
   return true;
@@ -1142,8 +1151,10 @@ function updateSlider(){
   window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
   t.addEventListener("keydown",e=>{
     if(!lenOn()||P.len==null)return;
-    const ok=BOLT_LEN.filter(x=>x>=lenMin());
-    const i=ok.indexOf(snapLen(P.len));
+    const ok=lenPicks();
+    if(!ok.length)return;
+    /* 현재 길이가 후보에 없을 수도 있으니 후보 안에서 가장 가까운 칸을 기준으로 잡는다 */
+    const i=ok.indexOf(snapIn(ok,P.len));
     if(e.key==="ArrowRight"||e.key==="ArrowUp"){if(setBoltLen(ok[Math.min(ok.length-1,i+1)]))render();e.preventDefault();}
     if(e.key==="ArrowLeft"||e.key==="ArrowDown"){if(setBoltLen(ok[Math.max(0,i-1)]))render();e.preventDefault();}
   });

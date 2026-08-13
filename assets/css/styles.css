@@ -15,7 +15,7 @@
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-/* display를 지정한 요소에서도 hidden 속성이 이기도록 — .grip-in 등이 flex라 UA 규칙에 진다 */
+/* display를 지정한 요소에서도 hidden 속성이 이기도록 — .sl-h(체결 두께 줄)가 flex라 UA 규칙에 진다 */
 [hidden]{display:none !important}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
@@ -346,7 +346,6 @@ th:last-child,td:last-child{padding-right:0}
   .app{padding:0 11px}
   .bar-in{padding:12px 12px 10px;gap:8px}
   .bar .sub{display:none}
-  .bar-btn{padding:0 12px;font-size:12.5px}
   #spec{font-size:29px}
   .spec-wrap,.chk-h,.sec-head,.seg-block{padding-left:14px;padding-right:14px}
   .le-ctl{padding-left:14px;padding-right:14px}
