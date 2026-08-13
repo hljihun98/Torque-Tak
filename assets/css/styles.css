@@ -1,11 +1,15 @@
 :root{
   --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#F7F9FB;
-  --ink:#0B1220; --ink-2:#4A5567; --ink-3:#8593A8;
+  /* --ink-3는 검토 항목 설명문 같은 본문에 쓰이므로 흰 배경에서 4.5:1을 넘겨야 한다.
+     이전 #8593A8은 3.1:1로 WCAG AA 미달이었다. 순수 장식용은 --ink-4로 분리.
+     상태색은 흰 배경뿐 아니라 각자의 tint 배경(배지·칩) 위에서도 4.5:1을 넘긴다.
+     이 값들은 app.js의 DC(단면도 색)와 짝이므로 함께 바꿔야 한다. */
+  --ink:#0B1220; --ink-2:#4A5567; --ink-3:#64738A; --ink-4:#8593A8;
   --line:#E4E9EF; --line-2:#EFF2F6;
   --brand:#1B57E8; --brand-tint:#EAF0FE;
-  --ok:#0B8A5B; --ok-tint:#E6F5EE;
-  --warn:#C77700; --warn-tint:#FEF3E0;
-  --ng:#D92D20; --ng-tint:#FEECEA;
+  --ok:#0A7A50; --ok-tint:#E6F5EE;
+  --warn:#A25F00; --warn-tint:#FEF3E0;
+  --ng:#C42317; --ng-tint:#FEECEA;
   --r-sm:10px; --r:14px; --r-lg:20px; --r-full:999px;
   --sh-1:0 1px 2px rgba(11,18,32,.05), 0 1px 1px rgba(11,18,32,.03);
   --sh-3:0 -8px 40px rgba(11,18,32,.16);
@@ -203,7 +207,8 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
   display:flex;align-items:center;justify-content:center;transition:box-shadow .18s var(--ease)}
 .thumb::after{content:"";width:10px;height:10px;border-radius:var(--r-full);background:var(--st);transition:background .3s var(--ease)}
 .thumb.ghost{background:var(--line-2);box-shadow:none}
-.thumb.ghost::after{background:var(--ink-3);opacity:.5}
+/* 미설정 표시용 점 — 텍스트가 아니라 장식이므로 연한 톤을 유지한다 */
+.thumb.ghost::after{background:var(--ink-4);opacity:.5}
 .thumb.pulse{box-shadow:0 2px 8px rgba(11,18,32,.2),0 0 0 8px var(--st-tint)}
 .snap{position:absolute;top:-14px;font-size:13.5px;font-weight:800;letter-spacing:-.03em;
   color:var(--st);opacity:0;pointer-events:none;transform:translateX(-50%)}
@@ -285,12 +290,19 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .src.t3{background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line)}
 .src.t4{background:var(--warn-tint);color:var(--warn)}
 .src-legend{margin-top:2px}
-.lg-row{display:flex;align-items:center;gap:9px;margin-top:6px;font-size:12px;line-height:1.45}
+.lg-row{display:flex;align-items:flex-start;gap:9px;margin-top:6px;font-size:12px;line-height:1.45}
 .lg-row i{flex:none;min-width:62px;text-align:center}
 .lg-row b{color:var(--ink);font-weight:600}
+/* 출처 목록 — 배지의 title은 터치 기기에서 열리지 않으므로 설명을 항상 보여준다.
+   라벨이 등급 별표보다 길어 칸을 더 준다. */
+.src-gloss{margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)}
+.src-gloss .lg-row i{min-width:96px}
 .lg-note{font-size:12px;line-height:1.6;color:var(--ink-2);background:var(--surface-2);
   padding:11px 12px;border-radius:var(--r-sm);margin-top:11px}
 .lg-note b{color:var(--ink);font-weight:700}
+/* 실측 표는 행별 가정 표기가 붙어 좁은 화면에서 넘칠 수 있다 — 페이지가 아니라 표만 스크롤 */
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl-scroll table{min-width:300px}
 table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 th,td{text-align:right;padding:9px 4px;border-bottom:1px solid var(--line-2)}
 th{font-size:10.5px;font-weight:600;color:var(--ink-3);border-bottom:1px solid var(--line)}

@@ -2,10 +2,12 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<!-- maximum-scale은 확대를 막아 WCAG 1.4.4에 걸린다. 작은 수치를 읽는 현장 도구라 특히 필요하다 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F4F6F8">
 <meta name="description" content="볼트 체결 조건에 따른 권장 토크를 빠르게 계산하는 모바일 웹 도구">
 <title>Torque Tak! · 볼트 체결토크</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21.4 12 16.7 20.1 7.3 20.1 2.6 12 7.3 3.9 16.7 3.9Z' fill='none' stroke='%230B1220' stroke-width='1.9' stroke-linejoin='round'/><circle cx='12' cy='12' r='3.7' fill='%231B57E8'/></svg>">
 <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
@@ -183,15 +185,15 @@
 
  <div class="col col-full">
   <div class="acc" id="accBasis">
-    <button class="acc-h" data-acc="accBasis">계산 근거
+    <button class="acc-h" data-acc="accBasis" aria-expanded="false" aria-controls="basisBody">계산 근거
       <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
-    <div class="acc-b"><div><div class="acc-in"><div class="eq" id="basis"></div></div></div></div>
+    <div class="acc-b" id="basisBody"><div><div class="acc-in"><div class="eq" id="basis"></div></div></div></div>
   </div>
 
   <div class="acc" id="accLimit">
-    <button class="acc-h" data-acc="accLimit">모델 한계 — 반드시 읽어주세요 <span class="cnt">중요</span>
+    <button class="acc-h" data-acc="accLimit" aria-expanded="false" aria-controls="limitBody">모델 한계 — 반드시 읽어주세요 <span class="cnt">중요</span>
       <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
-    <div class="acc-b"><div><div class="acc-in">
+    <div class="acc-b" id="limitBody"><div><div class="acc-in">
       <p class="note"><b>1. 토크로는 축력을 정밀 제어할 수 없습니다.</b> 표시 토크를 정확히 걸어도 마찰계수 산포 때문에 실제 축력은 <code>±30%</code> 범위로 흩어집니다. 안전이 걸린 체결부는 축력계·각도법·연신법으로 검증하십시오.</p>
       <p class="note"><b>2. 경험 보정값을 씁니다.</b> 나사산 전단면적의 변형 보정계수 <code>0.65</code>, 머리 형상 계수(접시 0.75 / 저두 0.60 / 버튼 0.70)는 규격 실측값이 아니라 <b>경험 근사값</b>입니다. 실물 파단 시험으로 재교정해야 합니다.</p>
       <p class="note"><b>3. 박판·소수 나사산에는 적용되지 않습니다.</b> 유효 나사산 3산 미만 또는 Le 2.5mm 미만에서는 파괴가 나사산 전단이 아니라 <b>판재 함몰·찢김</b>으로 일어납니다. 이 모델의 물리가 성립하지 않습니다. 버링탭·PEM너트·클린칭너트를 검토하십시오.</p>
@@ -205,21 +207,24 @@
   </div>
 
   <div class="acc" id="accMeas">
-    <button class="acc-h" data-acc="accMeas">사내 실측 대조 <span class="cnt" id="measCnt"></span>
+    <button class="acc-h" data-acc="accMeas" aria-expanded="false" aria-controls="measBodyWrap">사내 실측 대조 <span class="cnt" id="measCnt"></span>
       <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
-    <div class="acc-b"><div><div class="acc-in">
-      <table><thead><tr><th>사용처</th><th>Le</th><th>실측</th><th>예상</th><th>편차</th></tr></thead><tbody id="measBody"></tbody></table>
+    <div class="acc-b" id="measBodyWrap"><div><div class="acc-in">
+      <div class="tbl-scroll">
+        <table><thead><tr><th>사용처</th><th>Le</th><th>실측</th><th>예상</th><th>편차</th></tr></thead><tbody id="measBody"></tbody></table>
+      </div>
       <div class="summ" id="measSumm"></div>
       <div class="summ" id="measWarn"></div>
     </div></div></div>
   </div>
 
   <div class="acc" id="accLen">
-    <button class="acc-h" data-acc="accLen">볼트 길이는 토크를 결정하지 않습니다
+    <button class="acc-h" data-acc="accLen" aria-expanded="false" aria-controls="lenBody">볼트 길이는 토크를 직접 결정하지 않습니다
       <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
-    <div class="acc-b"><div><div class="acc-in">
+    <div class="acc-b" id="lenBody"><div><div class="acc-in">
       <p class="note"><b>입력한 길이는 사양 식별용입니다.</b> 강도를 지배하는 건 볼트 유효단면적·강도구분과, 암나사에 실제로 물린 깊이 Le입니다.</p>
       <p class="note">판재가 두꺼워 긴 볼트를 쓰면 물린 나사산 수가 같아도 <em>체결길이÷볼트길이</em>는 절반이 됩니다. 이 값은 강도와 인과관계가 없습니다.</p>
+      <p class="note"><b>단, 길이가 물림을 제한하면 이야기가 달라집니다.</b> 볼트가 짧아 판재 두께를 0으로 놓아도 필요한 물림에 못 닿으면, 그 길이가 곧 뽑힘 여유의 상한이 됩니다. 이 경우에는 길이를 바꾸면 권장 토크가 함께 움직이고, <em>볼트 길이 여유</em> 항목이 그 사실을 알려줍니다. 물림이 넉넉한 구간에서 길이를 바꿔도 토크가 그대로인 것은 정상입니다.</p>
     </div></div></div>
   </div>
 

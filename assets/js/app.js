@@ -35,11 +35,13 @@ const CLS_SEG=["12.9","10.9","8.8","A2-70"];
    머리 형상
    f    : 토크/축력 제한계수 — 경험 근사값 (규격 실측 아님)
    cap  : 규격상 최대 강도구분
-   dhr  : 좌면 지름 배수 (d 대비). null = 원추 좌면(미검토)
+   dhr  : 좌면 지름 배수 (d 대비). null = 원추 좌면(면압 미검토)
+   dkr  : 하중 도입 원 지름 배수 — 면압은 못 구해도 부재 강성에는 필요하다
    ══════════════════════════════════════════════════════════ */
 const HEAD={
   std :{label:"표준",   full:"표준 (육각홀붙이 ISO 4762)",   f:1.00, cap:null,   dhr:null, iso:true,  note:"제한 없음"},
-  cs  :{label:"접시 CS", full:"접시 CS (ISO 10642)",         f:0.75, cap:"10.9", dhr:null, cone:true, note:"헤드 두께·소켓 깊이 제한 → 규격 최대 10.9"},
+  /* dkr 2.24 = ISO 10642 이론 머리 지름 dk (M3 6.72 · M5 11.2 · M8 17.92 = 2.24d) */
+  cs  :{label:"접시 CS", full:"접시 CS (ISO 10642)",         f:0.75, cap:"10.9", dhr:null, dkr:2.24, cone:true, note:"헤드 두께·소켓 깊이 제한 → 규격 최대 10.9"},
   low :{label:"저두",    full:"저두 (Low head, DIN 6912)",   f:0.60, cap:"10.9", dhr:1.50, note:"실제 파괴는 육각홀 뭉개짐"},
   btn :{label:"버튼",    full:"버튼 (ISO 7380)",             f:0.70, cap:"10.9", dhr:1.90, note:"돔 헤드 강도 제한"},
   sems:{label:"SEMS",   full:"SEMS (와셔 일체)",            f:1.00, cap:"8.8",  dhr:2.10, note:"통상 4.8~8.8 또는 A2-70급"}
@@ -177,7 +179,11 @@ const FIX={
           "탭 구멍 입구를 카운터보어로 확장해 샹크가 들어갈 자리를 만든다"],
   thlen :["나사부가 더 긴 볼트(전산 볼트)로 바꾼다",
           "물림 깊이 Le를 볼트의 실제 나사부 길이 안으로 줄인다",
-          "볼트 길이를 늘려 나사부 길이를 확보한다"]
+          "볼트 길이를 늘려 나사부 길이를 확보한다"],
+  reach :["볼트 길이를 늘려 물릴 나사부를 확보한다",
+          "전산(전조 나사) 볼트로 바꿔 비나사부를 없앤다",
+          "판재를 얇게 하거나 카운터보어로 좌면을 낮춰 물림에 쓸 길이를 늘린다",
+          "목표 축력 %나 볼트 강도구분을 낮춰 필요 물림 자체를 줄인다"]
 };
 
 const EMBED    = 0.10;  // 임베딩/이완 손실 10%
@@ -221,17 +227,55 @@ function compute(o,_probe){
   const Fhead = Fwant*H.f;             // 머리 제한 반영
   let Feff = Fhead;                    // 최종 적용 축력
 
-  /* 나사산 뽑힘 */
-  const hasLe = o.Le>0;
+  /* ── 체결부 기하 ─────────────────────────────────────────
+     L = 머리 + 체결 두께 + Le. 머리 밑 길이 Lu를 물림과 판재가 나눠 쓴다.
+     기하를 뽑힘보다 먼저 잡아야 "이 길이로 얼마나 물릴 수 있는가"를 알 수 있다. */
+  const headH= H.cone?cskHead(d):0;            // 접시는 호칭 길이에 머리가 포함된다
+  const Lu   = (o.len!=null&&o.len>0) ? o.len-headH : null;   // 머리 밑 유효 길이
+  const ls   = Math.max(0,o.shank||0);
+  /* 볼트가 내줄 수 있는 최대 물림 — 판재 두께 0을 가정한 최선의 경우.
+     비나사부와 불완전 나사 2피치에는 물릴 나사산이 없으므로 뺀다. */
+  const LeReach = Lu==null ? null : Math.max(0, ls>0 ? Lu-ls-2*p : Lu);
+
+  /* 나사산 뽑힘 — Fstrip은 Le에 정비례하므로 계수 stripK로 묶어 둔다 */
+  const tauU   = tauOf(o.mat);
+  const stripK = 0.875*PI*d*tauU*KNOCK;        // Fstrip = stripK × Le
+  const hasLe  = o.Le>0;
   const Ats    = hasLe?stripArea(d,o.Le):null;
-  const Fstrip = hasLe?Ats*tauOf(o.mat):null;
-  const LeMin  = Fu/(0.875*PI*d*tauOf(o.mat)*KNOCK);
+  const Fstrip = hasLe?Ats*tauU:null;
+  const LeMin  = Fu*H.f/stripK;                // 볼트(머리 제한 포함)가 먼저 파단하는 물림
   const margin = hasLe?Fstrip/Fhead:null;      // 제한 전 기준 = 실제 여유
-  let limited=false;
-  if(hasLe && Fstrip/STRIP_SF < Feff){ Feff=Fstrip/STRIP_SF; limited=true; }
+  /* 판정이 "적합"으로 바뀌는 최소 Le — Le에 의존하는 검토만 고려.
+     기하보다 뒤에 두면 도달 가능성 판단에 쓸 수 없어 여기서 구한다. */
+  const LeOk = Math.max(
+    2.5*Fhead/stripK,             // 뽑힘 여유 2.5배
+    6*p,                          // 유효 나사산 6산
+    M.thin?4:0,                   // 박판 모재 최소 물림
+    LeMin                         // 볼트가 먼저 파단하는 조건
+  );
+  /* Le 미설정의 "탭 충분 가정"은 볼트가 그만큼 물릴 수 있을 때만 성립한다.
+     짧은 볼트는 판재 두께 0을 가정해도 기준 물림에 못 닿으므로 도달 가능한
+     최대 물림으로 축력을 묶는다 — 그래야 길이를 바꾸면 토크가 따라 움직인다. */
+  const LeAssume = (!hasLe&&LeReach!=null&&LeReach>0) ? Math.min(LeOk,LeReach) : null;
+  /* 가정값이 기준값이 아니라 길이 한도에서 왔는지 — 문구를 여기로 갈라야 한다.
+     reachLimited(토크까지 깎였는지)와는 다르다. 한도에 걸렸어도 뽑힘 여유가
+     남아 토크는 그대로일 수 있다. */
+  const reachCapped = LeAssume!=null && LeAssume < LeOk-1e-9;
+  let limited=false, reachLimited=false;
+  if(hasLe){
+    if(Fstrip/STRIP_SF < Feff){ Feff=Fstrip/STRIP_SF; limited=true; }
+  }else if(LeAssume!=null){
+    const Fa=stripK*LeAssume;
+    if(Fa/STRIP_SF < Feff){ Feff=Fa/STRIP_SF; limited=true; reachLimited=true; }
+  }
+  /* 화면·단면도가 함께 쓰는 표시용 물림 — 미설정이면 가정값, 그마저 없으면 기준값 */
+  const LeShow = hasLe?o.Le:(LeAssume!=null?LeAssume:LeOk);
 
   const Trec   = K*Feff*d/1000;
-  const Tbreak = K*(hasLe?Math.min(Fu*H.f,Fstrip):Fu*H.f)*d/1000;
+  const Fbreak = hasLe    ? Math.min(Fu*H.f,Fstrip)
+               : LeAssume!=null ? Math.min(Fu*H.f,stripK*LeAssume)
+               : Fu*H.f;
+  const Tbreak = K*Fbreak*d/1000;
 
   /* 축력 산포 (토크 고정, K가 흔들림) */
   const Flo = Feff/(1+K_SCAT), Fhi = Feff/(1-K_SCAT);
@@ -258,15 +302,16 @@ function compute(o,_probe){
      그러면 이완 손실을 고정 비율이 아니라 변위 f_Z에서 직접 구할 수 있다. */
   const AN   = PI/4*d*d;                       // 비나사부(전경) 단면적
   const dRoot= d-1.226869*p, Ad3=PI/4*dRoot*dRoot;
-  const headH= H.cone?cskHead(d):0;            // 접시는 호칭 길이에 머리가 포함된다
-  const Lu   = (o.len!=null&&o.len>0) ? o.len-headH : null;   // 머리 밑 유효 길이
   const Lk   = (Lu!=null&&hasLe) ? Lu-o.Le : null;            // 체결 두께(그립)
-  const ls   = Math.max(0,o.shank||0);
   const slv  = SLV_RANK[o.slevel]!=null ? o.slevel : "embed";
   const shankOn = ls>0 && Lk!=null && Lk>0;
   const lg   = shankOn ? Math.max(0,Lk-Math.min(ls,Lk)) : null;
 
-  let dS=null,dP=null,phi=null,Fz=null,embedCalc=null,turnDeg=null;
+  let dS=null,dP=null,phi=null,Fz=null,embedCalc=null,embedCapped=false,turnDeg=null;
+  /* 하중 도입 원 지름 — 부재 강성 계산용. 평좌면은 실제 좌면 지름을 쓰고,
+     접시는 좌면 면압을 검토할 수 없어도 원추의 이론 머리 지름(ISO 10642 ≈ 2.24d)이
+     하중이 판재로 퍼지기 시작하는 원이므로 그 값을 쓴다. 근거 패널에 명시한다. */
+  const dLoad = Db || (H.dkr?H.dkr*d:null);
   if(shankOn){
     /* 볼트 컴플라이언스 — VDI 2230 Part 1 구간 분해 */
     const dSK = 0.5*d/(E_BOLT*AN);                      // 머리
@@ -276,13 +321,15 @@ function compute(o,_probe){
     dS = dSK+d1+dGew+dGM;
     /* 부재 컴플라이언스 — Rötscher 30° 압축 원추 (Shigley).
        탭 조인트라 유효 그립에 d/2를 더하고 같은 원추 2개 직렬로 본다. */
-    const dw=Db||1.65*d, t=(Lk+d/2)/2;
-    const num=(1.155*t+dw-d)*(dw+d), den=(1.155*t+dw+d)*(dw-d);
-    if(dw>d*1.02 && den>0 && num/den>1){
+    const dw=dLoad, t=(Lk+d/2)/2;
+    const num=dw!=null?(1.155*t+dw-d)*(dw+d):0, den=dw!=null?(1.155*t+dw+d)*(dw-d):0;
+    if(dw!=null && dw>d*1.02 && den>0 && num/den>1){
       dP = 2*Math.log(num/den)/(0.5774*PI*M.E*d);       // 원추 2개 직렬
       const fZ=(FZ_UM+(washer!=="none"?FZ_UM_W:0))/1000;
       Fz = fZ/(dS+dP);
-      embedCalc = Math.min(0.5,Fz/Feff);
+      embedCalc = Fz/Feff;
+      /* 축력 절반을 넘는 이완은 모델 밖이다 — 캡을 걸되 걸렸다는 사실을 남긴다 */
+      if(embedCalc>0.5){ embedCalc=0.5; embedCapped=true; }
       phi = dP/(dS+dP);                                 // 하중계수 (도입계수 n=1 보수)
       /* 각도법 참고값 — 밀착 후 필요한 회전각.
          볼트 신장 + 부재 압축을 모두 감아야 하고, 샹크 비틀림만큼 더 돌아간다. */
@@ -296,11 +343,12 @@ function compute(o,_probe){
 
   /* ── 나사 고정제 · 제거 토크 ─────────────────────────
      T_제거 = 잔존 축력에 의한 마찰분 + 고정제 이탈분
-     마찰분: 풀 때는 피치 성분이 반대로 작용 → (K·d − p/2π)
+     마찰분: K·d에는 피치 성분 +p/2π가 한 번 들어 있다. 풀 때는 이 항의 부호가
+             뒤집히므로 두 번 빼야 한다 → (K·d − p/π). 한 번만 빼면 순수 마찰분이다.
      고정제분: TDS M10 값 × 호칭경 보정 × (실제 물림 / 표준 너트 높이) */
   const L = LOCK[o.lock||"none"];
   const Fserv0 = Feff*(1-embedUse);
-  const Tfric = Fserv0*(K*d - p/(2*PI))/1000;
+  const Tfric = Math.max(0,Fserv0*(K*d - p/PI))/1000;
   let Tadh=0, Trem=null, remRatio=null;
   if(L.bk>0){
     const eng = hasLe ? o.Le : nutH(d);
@@ -326,14 +374,6 @@ function compute(o,_probe){
   const threads = hasLe?o.Le/p:null;
   const thinRegime = hasLe && (threads<3 || o.Le<2.5);
 
-  /* 판정이 "적합"으로 바뀌는 최소 Le — Le에 의존하는 검토만 고려 */
-  const LeOk = Math.max(
-    2.5*Fhead/(0.875*PI*d*tauOf(o.mat)*KNOCK),   // 뽑힘 여유 2.5배
-    6*p,                                          // 유효 나사산 6산
-    M.thin?4:0,                                   // 박판 모재 최소 물림
-    LeMin                                         // 볼트가 먼저 파단하는 조건
-  );
-
   /* ── 검토 항목 ─────────────────────────────────────────── */
   const checks=[];
   /* kind: "str"=구조 안전(설계 NG 가능) / "svc"=정비성(최대 주의까지)
@@ -355,6 +395,19 @@ function compute(o,_probe){
   else if(threads<4) add("bad","유효 나사산 수","4산 미만 — 구조 안전 기준 미달",threads.toFixed(1)+"산","str",FIX.strip);
   else if(threads<6) add("warn","유효 나사산 수","6산 확보 권장",threads.toFixed(1)+"산");
   else add("ok","유효 나사산 수","6산 이상 확보",threads.toFixed(1)+"산");
+
+  /* 볼트 길이 여유 — 판재 두께 0을 가정한 최선의 경우에도 기준을 만족하는지.
+     Le 설정과 무관하게 "이 길이를 고른 것이 맞는가"를 보는 항목이다. */
+  if(LeReach===null) add("na","볼트 길이 여유","볼트 길이를 입력하면 검토합니다","—");
+  else if(LeReach<=0) add("na","볼트 길이 여유","비나사부가 볼트를 다 먹어 물릴 나사부가 없습니다","—");
+  else if(LeReach<LeMin)
+    add("bad","볼트 길이 여유","판재 두께 0을 가정해도 최대 물림 "+LeReach.toFixed(1)
+        +" mm < 최소 "+LeMin.toFixed(1)+" mm — 볼트가 짧습니다",LeReach.toFixed(1)+" mm","str",FIX.reach);
+  else if(LeReach<LeOk)
+    add("warn","볼트 길이 여유","최대 물림 "+LeReach.toFixed(1)+" mm로는 적합 기준 "
+        +LeOk.toFixed(1)+" mm에 못 미칩니다 — 판재를 0으로 해도 여유가 없습니다",LeReach.toFixed(1)+" mm");
+  else
+    add("ok","볼트 길이 여유","적합 기준 "+LeOk.toFixed(1)+" mm까지 물릴 여지가 있습니다",LeReach.toFixed(1)+" mm");
 
   /* 비나사부 기하 — 입력했을 때만. 해석 수준과 무관하게 항상 검사한다 */
   if(ls>0){
@@ -458,9 +511,15 @@ function compute(o,_probe){
   const nBad=checks.filter(c=>c.lvl==="bad").length;
   const nWarn=checks.filter(c=>c.lvl==="warn").length;
   let lvl,tag,txt;
-  if(!hasLe){
+  /* 볼트 길이만으로도 확정되는 NG(길이 부족)는 Le 미설정이어도 숨기지 않는다 */
+  if(!hasLe&&!nBad){
     lvl="idle"; tag="물림 깊이를 맞추세요";
-    txt="탭 충분 가정 · 뽑힘·나사산 수는 아직 판정 전";
+    txt = reachCapped
+        ? "볼트 길이로 물릴 수 있는 최대 "+LeAssume.toFixed(1)+" mm 가정"
+          +(reachLimited?" · 토크를 그만큼 제한했습니다":" · 뽑힘 여유는 아직 남습니다")
+        : LeAssume!=null
+        ? "적합 기준 물림 "+LeAssume.toFixed(1)+" mm 가정 · 뽑힘·나사산 수는 아직 판정 전"
+        : "탭 충분 가정 · 뽑힘·나사산 수는 아직 판정 전";
   }else if(nBad){
     lvl="bad"; tag="설계 NG";
     txt=checks.filter(c=>c.lvl==="bad").map(c=>c.name).join(" · ")+" 부적합";
@@ -477,11 +536,12 @@ function compute(o,_probe){
   }
 
   return{d,p,As,cls,capped,C,H,M,K,washer,Fy,Fu,Fwant,Fhead,Feff,Flo,Fhi,Fserv,Freq,
-         Fstrip,Ats,LeMin,LeOk,okPossible,threads,margin,limited,hasLe,Le:o.Le,
+         Fstrip,Ats,LeMin,LeOk,LeReach,LeAssume,LeShow,reachLimited,reachCapped,
+         okPossible,threads,margin,limited,hasLe,Le:o.Le,
          L,Tfric,Tadh,Trem,remRatio,
-         Trec,Tbreak,sigma,tau,sigEq,util,Db,pBear,pRatio,
+         Trec,Tbreak,sigma,tau,sigEq,util,Db,dLoad,pBear,pRatio,
          headH,Lu,Lk,ls,lg,slv,shankOn,dS,dP,phi,Fz,
-         embedCalc,embedUse,useEmbed,usePhi,turnDeg,Fsa,sigMax,len:o.len,
+         embedCalc,embedCapped,embedUse,useEmbed,usePhi,turnDeg,Fsa,sigMax,len:o.len,
          checks,lvl,tag,txt,nBad,nWarn,thinRegime,loadType:o.loadType,load:o.load};
 }
 
@@ -514,6 +574,13 @@ function parse(raw){
   if(out.pitch<=0||out.pitch>out.d/2)return{err:"피치 값이 유효하지 않습니다."};
   const lm=rest.match(/[-–—]\s*(\d+(?:\.\d+)?)/)||rest.match(/\s(\d+(?:\.\d+)?)\s*$/);
   out.len=lm?parseFloat(lm[1]):null;
+  /* 길이도 상한을 걸어야 한다 — 오타 한 자리가 물림 슬라이더 전체 축척을 망가뜨리고,
+     터무니없이 긴 볼트는 뽑힘 여유를 무한히 키워 "적합"을 잘못 띄운다. */
+  if(out.len!=null){
+    const lmax=Math.min(300,30*out.d);
+    if(out.len<=0)return{err:"길이는 0보다 커야 합니다."};
+    if(out.len>lmax)return{err:"M"+out.d+" 길이는 "+lmax+"mm 이하만 지원합니다."};
+  }
   if(!out.head){out.head="std";out.assumed.push("표준 머리 가정");}
   return out;
 }
@@ -538,15 +605,23 @@ const MEAS=[
  {use:"전장박스 TAP",          d:3, head:"sems",Le:2.0, T:1.47,  mat:"SPCC", cls:"A2-70", k:"sus"},
  {use:"전장박스 TAP",          d:4, head:"sems",Le:2.0, T:2.04,  mat:"SPCC", cls:"A2-70", k:"sus"}
 ];
+/* 시트에 기록되지 않은 항목의 대체값 — 예상값에 그대로 들어가므로 화면에 표기한다.
+   강도구분은 파단 하중을 1.5배까지 흔들고, 체결 조건은 K를 통해 토크에 직접 곱해진다. */
+const MEAS_ASSUME={cls:"12.9",k:"dry"};
 /* 예측값은 사용자 설정과 무관한 상수 — 최초 1회만 계산 */
 const MEAS_PRED = MEAS.map(m=>{
-  const base={d:m.d,pitch:PITCH[m.d],cls:m.cls||"12.9",head:m.head,k:m.k||"dry",
+  const base={d:m.d,pitch:PITCH[m.d],cls:m.cls||MEAS_ASSUME.cls,head:m.head,k:m.k||MEAS_ASSUME.k,
               washer:"none",preload:70,Le:m.Le,loadType:"none",load:0};
+  /* 가정으로 채운 항목 목록 — 행마다 무엇이 기록되지 않았는지 보여주기 위해 남긴다 */
+  const gaps=[];
+  if(!m.mat)gaps.push("재질");
+  if(!m.cls)gaps.push("강도구분 "+MEAS_ASSUME.cls);
+  if(!m.k)  gaps.push("체결조건 K"+KF[MEAS_ASSUME.k].k.toFixed(2));
   if(m.mat){
     const r=compute(Object.assign({},base,{mat:m.mat}));
-    return {known:true, T:r.Tbreak, dev:(r.Tbreak/m.T-1)*100};
+    return {known:true, gaps, T:r.Tbreak, dev:(r.Tbreak/m.T-1)*100};
   }
-  return {known:false,
+  return {known:false, gaps,
           hi:compute(Object.assign({},base,{mat:"S45C"})).Tbreak,
           lo:compute(Object.assign({},base,{mat:"SS400"})).Tbreak};
 });
@@ -568,7 +643,38 @@ const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",loc
          shank:0,slevel:"embed",     // shank 0 = 비나사부 미고려
          lenSlider:true,             // 볼트 길이도 슬라이더로 조절할지 (선택 · 기본 켜짐)
          grip:0};                    // 유지되는 체결 두께 — 길이를 바꾸면 물림이 이걸 기준으로 따라온다
-let R=null,P=null,lastDigits="",lastSide=null,lastLvl=null,lastIcon=null;
+let R=null,P=null,lastDigits="",lastLvl=null,lastIcon=null,lastChkKey=null;
+
+/* ── 상태 저장 ───────────────────────────────────────────
+   현장에서 같은 체결부를 반복해 보는 도구다. 새로 고칠 때마다 M5-12·S45C로
+   돌아가면 매번 다시 세팅해야 한다. 저장값은 표에서 사라졌을 수 있으니
+   키 존재를 하나씩 확인하고 받는다 — 못 믿을 입력으로 취급한다. */
+const LS_KEY="torque-tak/v1";
+let saveT=null;
+function saveState(){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(S));}catch(e){}
+}
+function queueSave(){ clearTimeout(saveT); saveT=setTimeout(saveState,400); }
+function loadState(){
+  let raw=null;
+  try{raw=localStorage.getItem(LS_KEY);}catch(e){return;}
+  if(!raw)return;
+  let o=null;
+  try{o=JSON.parse(raw);}catch(e){return;}
+  if(!o||typeof o!=="object")return;
+  const pick=(k,tbl)=>{if(typeof o[k]==="string"&&tbl[o[k]])S[k]=o[k];};
+  const num =(k,max)=>{const v=+o[k]; if(isFinite(v)&&v>=0&&v<=max)S[k]=v;};
+  if(typeof o.spec==="string"&&o.spec.length<=40)S.spec=o.spec;
+  pick("cls",CLS); pick("head",HEAD); pick("mat",MAT); pick("k",KF);
+  pick("washer",WASHER); pick("lock",LOCK);
+  if(PL_SEG.indexOf(+o.preload)>=0)S.preload=+o.preload;
+  if(typeof o.slevel==="string"&&SLV_RANK[o.slevel]!=null)S.slevel=o.slevel;
+  if(LOAD_SEG.some(x=>x.v===o.loadType))S.loadType=o.loadType;
+  num("Le",400); num("grip",400); num("shank",400); num("load",1e7);
+  S.headAuto = !!o.headAuto;
+  S.lenSlider= o.lenSlider!==false;
+  if(S.loadType==="none")S.load=0;              // 해제 상태와 값이 어긋나지 않게
+}
 
 const IC={
   ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -593,6 +699,7 @@ function render(fast){
     $("vIcon").innerHTML=IC.na; lastIcon=null;   // 직접 덮었으니 가드도 풀어둬야 복구된다
     ["sForce","sUtil","sBreak","leRead"].forEach(i=>$(i).textContent="—");
     $("draw").innerHTML=""; $("chkList").innerHTML=""; $("chkTags").innerHTML="";
+    lastChkKey=null;                             // 목록을 비웠으니 가드도 풀어야 복구된다
     buildQuick(); return;
   }
   $("err").hidden=true;
@@ -660,16 +767,22 @@ function render(fast){
   $("gripRow").hidden=R.Lk==null;
   if(R.Lk!=null)$("gripRead").textContent=f1(Math.max(0,R.Lk))+" mm";
   $("leRead").textContent=R.hasLe?f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d):"미설정";
-  const cap=leCap(), atCap=S.shank>0&&isFinite(cap)&&R.hasLe&&S.Le>=cap-0.05;
+  const cap=leCap(), atCap=isFinite(cap)&&R.hasLe&&S.Le>=cap-0.05;
   $("leNote").textContent =
       !R.okPossible ? "다른 검토 항목이 막고 있어 Le만으로는 적합해지지 않습니다"
-    : atCap         ? "비나사부 "+f1(S.shank)+" + 불완전 나사 "+f1(2*R.p)+" mm — 물림은 "+f1(cap)+" mm까지입니다"
+    : atCap         ? (S.shank>0
+                        ? "비나사부 "+f1(S.shank)+" + 불완전 나사 "+f1(2*R.p)+" mm — 물림은 "+f1(cap)+" mm까지입니다"
+                        : "볼트 길이 "+P.len+" mm 안에서 물림은 "+f1(cap)+" mm까지입니다")
     : R.hasLe       ? R.threads.toFixed(1)+"산 물림 · 최소 "+f1(R.LeMin)+" / 적합 "+f1(R.LeOk)+" mm"
+    /* 미설정이어도 무엇을 가정하고 토크를 냈는지는 밝힌다 */
+    : R.reachCapped ? "볼트 길이로 물릴 수 있는 최대 "+f1(R.LeShow)+" mm를 가정했습니다 — 밀어서 실제 값으로"
+    : R.LeAssume!=null
+                    ? "적합 기준 "+f1(R.LeShow)+" mm 물림 가정 — 밀어서 실제 값으로"
     :                 "밀어서 실제 물림 길이를 맞추세요";
   $("leReset").hidden=!R.hasLe;
 
   renderChecks(); renderRemoval();
-  updateSlider(); drawSection();
+  updateSlider(!fast); drawSection();
   if(fast) return;                      // 드래그 중에는 여기서 종료
   buildQuick(); buildSegs(); updateQuickNav(); ensureChipVisible();
   $("vMat").textContent=MAT[S.mat].label;
@@ -680,6 +793,7 @@ function render(fast){
   $("loadClr").hidden=S.loadType==="none";
   updateShankUI();
   writeBasis(); fillMeas();
+  queueSave();
 }
 
 /* 비나사부 블록 — 입력이 있을 때만 해석 수준을 노출하고, 왜 못 쓰는지도 알려준다 */
@@ -697,8 +811,13 @@ function updateShankUI(){
     if(R.len==null) note="볼트 길이를 입력해야 체결 두께를 알 수 있습니다 — 예: M5-12";
     else if(!R.hasLe) note="물림 깊이 Le를 설정해야 체결 두께를 알 수 있습니다";
     else if(!R.shankOn) note="체결 두께가 0입니다 — 판재 없이 탭에 직접 조이는 형상이면 비나사부가 들어갈 자리가 없습니다";
-    else if(SLV_RANK[S.slevel]>=1&&!R.useEmbed) note="좌면 지름을 모르는 형상이라 부재 강성을 못 구합니다 — 기하 검사만 적용됩니다";
-    else if(R.useEmbed) note=desc.desc+" · 현재 이완 손실 "+(R.embedUse*100).toFixed(1)+"% (고정값 10% 대신)";
+    else if(SLV_RANK[S.slevel]>=1&&!R.useEmbed) note="이 형상에서는 부재 강성을 구할 수 없습니다 — 기하 검사만 적용됩니다";
+    else if(R.useEmbed){
+      note=desc.desc+" · 현재 이완 손실 "+(R.embedUse*100).toFixed(1)+"%"
+          +(R.embedCapped?" — 모델 상한 50%에 걸렸습니다":" (고정값 10% 대신)");
+      /* 접시는 좌면 면압을 못 구하면서 강성은 구한다 — 그 가정을 여기서도 밝힌다 */
+      if(R.H.cone)note+=" · 접시는 하중 도입 지름을 이론 머리 지름 2.24d로 가정";
+    }
   }
   $("slvDesc").textContent=note;
 }
@@ -762,6 +881,11 @@ function renderRemoval(){
 }
 
 function renderChecks(){
+  /* 드래그 중에는 검토 결과가 그대로인 프레임이 대부분이다. 목록 전체를 다시 만드는
+     비용이 프레임 예산에서 가장 크므로 내용이 바뀔 때만 다시 만든다. */
+  const key=R.checks.map(c=>c.lvl+""+c.name+""+c.val+""+c.detail).join("");
+  if(key===lastChkKey)return;
+  lastChkKey=key;
   const list=$("chkList"), tags=$("chkTags");
   list.innerHTML=""; tags.innerHTML="";
   const n={ok:0,warn:0,bad:0,na:0};
@@ -877,6 +1001,9 @@ function seg(id,indId,items,cur,lbl,cb){
 /* ══════════════════════════════════════════════════════════
    단면도
    ══════════════════════════════════════════════════════════ */
+/* SVG 속성에는 var()를 쓸 수 없어 CSS 토큰과 같은 값을 여기 한 번만 적어 둔다.
+   styles.css의 --ink-3 / --ng / --warn / --ok 를 바꾸면 여기도 함께 바꿔야 한다. */
+const DC={ink3:"#64738A", dim:"#5E7290", ng:"#C42317", warn:"#A25F00", ok:"#0A7A50"};
 function drawSection(){
   if(!R){$("draw").innerHTML="";return;}
   const W=340,cy=88, plateL=52, blkL=118, blkR=334;   // 치수선 2줄이 더 붙어 아래로 내렸다
@@ -887,11 +1014,11 @@ function drawSection(){
   const wRad=wOn?Math.min(bh-2,Math.max(cap*1.25,rMaj*WASHER[S.washer].dhr*0.55)):0;
   const hw=R.H.cone?0:(S.head==="low"?9:16);
   const headR=plateL-wThk;                     // 머리 우측 끝
-  const Le=R.hasLe?R.Le:R.LeOk;
+  const Le=R.LeShow;                           // 미설정이면 길이로 제한된 가정값
   const scale=Math.min(12,(blkR-blkL-34)/Math.max(Le,4));
   const eng=Math.max(16,Le*scale);
   const idle=!R.hasLe;
-  const col=idle?"#8593A8":R.lvl==="bad"?"#D92D20":R.lvl==="warn"?"#C77700":"#0B8A5B";
+  const col=idle?DC.ink3:R.lvl==="bad"?DC.ng:R.lvl==="warn"?DC.warn:DC.ok;
   const g=[]; const N=(x,y)=>x.toFixed(1)+","+y.toFixed(1);
 
   /* 탭 모재 */
@@ -911,16 +1038,16 @@ function drawSection(){
     g.push(`<rect x="${plateL}" y="${sy0.toFixed(1)}" width="${inW.toFixed(1)}" height="${(sh*2).toFixed(1)}" fill="#8FA6C4"/>`);
     if(over){
       const ow=Math.min(gw*(frE-1),eng);         // 불완전 나사까지 포함해 탭을 파고든 만큼
-      g.push(`<rect x="${blkL}" y="${sy0.toFixed(1)}" width="${ow.toFixed(1)}" height="${(sh*2).toFixed(1)}" fill="#D92D20" opacity=".5"/>`);
+      g.push(`<rect x="${blkL}" y="${sy0.toFixed(1)}" width="${ow.toFixed(1)}" height="${(sh*2).toFixed(1)}" fill="${DC.ng}" opacity=".5"/>`);
       /* 위는 물림 산수·좌면 압괴 라벨이, 아래 dy부터는 치수선이 쓴다. 그 사이 왼쪽이 빈다. */
-      g.push(`<text x="${plateL}" y="${(cy+bh+11).toFixed(1)}" font-size="9.5" font-weight="700" fill="#D92D20">샹크 간섭</text>`);
+      g.push(`<text x="${plateL}" y="${(cy+bh+11).toFixed(1)}" font-size="9.5" font-weight="700" fill="${DC.ng}">샹크 간섭</text>`);
     }
     const sx=plateL+inW;
-    g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?"#D92D20":"#5E7290"}" stroke-width="1.6"/>`);
+    g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?DC.ng:DC.dim}" stroke-width="1.6"/>`);
     /* 비나사부 치수 — 머리 밑에서 나사가 시작되는 지점까지.
        볼트보다 긴 값이 들어오면 치수가 무의미하므로 성립하지 않는다고 적는다. */
     /* 좌면 압괴 경고가 cy-bh-6에 오므로 그보다 위로 띄운다 */
-    const uy=cy-bh-24, c2=over?"#D92D20":"#5E7290", impossible=R.Lu!=null&&R.ls>=R.Lu;
+    const uy=cy-bh-24, c2=over?DC.ng:DC.dim, impossible=R.Lu!=null&&R.ls>=R.Lu;
     g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(sx,uy-4)} L${N(sx,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
     g.push(`<line x1="${headR}" y1="${uy}" x2="${sx.toFixed(1)}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
     g.push(`<text x="${((headR+sx)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
@@ -944,16 +1071,16 @@ function drawSection(){
   }
   const strip=R.hasLe&&R.margin<STRIP_SF;
   if(strip){
-    g.push(`<line x1="${blkL}" y1="${cy-rMaj-5}" x2="${blkL+eng}" y2="${cy-rMaj-5}" stroke="#D92D20" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
-    g.push(`<line x1="${blkL}" y1="${cy+rMaj+5}" x2="${blkL+eng}" y2="${cy+rMaj+5}" stroke="#D92D20" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${blkL}" y1="${cy-rMaj-5}" x2="${blkL+eng}" y2="${cy-rMaj-5}" stroke="${DC.ng}" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${blkL}" y1="${cy+rMaj+5}" x2="${blkL+eng}" y2="${cy+rMaj+5}" stroke="${DC.ng}" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
   }else if(R.hasLe){
-    g.push(`<line x1="${blkL-6}" y1="${cy-rMaj-8}" x2="${blkL-6}" y2="${cy+rMaj+8}" stroke="#8593A8" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${blkL-6}" y1="${cy-rMaj-8}" x2="${blkL-6}" y2="${cy+rMaj+8}" stroke="${DC.ink3}" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
   }
   /* 좌면 압괴 경고 */
   const bear=R.checks.find(c=>c.name==="좌면 면압");
   if(bear&&bear.lvl==="bad")
-    g.push(`<path d="M${N(plateL+2,cy-bh-3)} L${N(plateL+2,cy-rMaj-4)}" stroke="#D92D20" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/>`)
-    ,g.push(`<text x="${plateL+6}" y="${cy-bh-6}" font-size="9.5" font-weight="700" fill="#D92D20">좌면 압괴</text>`);
+    g.push(`<path d="M${N(plateL+2,cy-bh-3)} L${N(plateL+2,cy-rMaj-4)}" stroke="${DC.ng}" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/>`)
+    ,g.push(`<text x="${plateL+6}" y="${cy-bh-6}" font-size="9.5" font-weight="700" fill="${DC.ng}">좌면 압괴</text>`);
 
   const modeTxt=idle?"":strip?"뽑힘 지배":"볼트 목 파단";
   g.push(`<text x="${blkL+eng/2}" y="${cy-rMaj-14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${col}">${n}산 물림${modeTxt?" · "+modeTxt:""}</text>`);
@@ -962,17 +1089,21 @@ function drawSection(){
   g.push(`<path d="M${N(blkL,dy-5)} L${N(blkL,dy+5)} M${N(blkL+eng,dy-5)} L${N(blkL+eng,dy+5)}" stroke="${col}" stroke-width="1.4" stroke-linecap="round"/>`);
   g.push(`<line x1="${blkL}" y1="${dy}" x2="${blkL+eng}" y2="${dy}" stroke="${col}" stroke-width="1.6" stroke-linecap="round"/>`);
   g.push(`<text x="${blkL+eng/2}" y="${dy+17}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${col}">Le ${f1(Le)} mm</text>`);
-  if(idle)g.push(`<text x="${blkL+eng/2}" y="${dy+32}" text-anchor="middle" font-size="10" font-weight="600" fill="#8593A8">적합 기준값 · 아직 미설정</text>`);
-  if(wOn)g.push(`<text x="${plateL-2}" y="${dy+17}" text-anchor="end" font-size="10" font-weight="600" fill="#5E7290">${WASHER[S.washer].label}</text>`);
+  /* 미설정 상태의 Le가 기준값인지 길이 한도값인지 구분해 준다 — 8mm 볼트에
+     "Le 8.8" 같은 성립 불가 치수가 뜨지 않게 하는 것이 이 표시의 요점이다 */
+  if(idle)
+    g.push(`<text x="${blkL+eng/2}" y="${dy+32}" text-anchor="middle" font-size="10" font-weight="600" fill="${DC.ink3}">`
+      +`${R.reachCapped?"길이로 물릴 수 있는 최대 · 미설정":"적합 기준값 · 아직 미설정"}</text>`);
+  if(wOn)g.push(`<text x="${plateL-2}" y="${dy+17}" text-anchor="end" font-size="10" font-weight="600" fill="${DC.dim}">${WASHER[S.washer].label}</text>`);
   /* 볼트 길이 치수 — 물림 치수 바깥쪽에 한 줄 더 (제도 관례대로 전체 치수가 아래).
      "나사 길이"로 쓰면 바로 위 비나사부 치수와 나란해져 나사부 길이로 읽힌다. */
   if(R.len!=null){
     const ly=dy+(idle?46:30), lx1=headR, lx2=blkL+eng;
-    g.push(`<path d="M${N(lx1,ly-4)} L${N(lx1,ly+4)} M${N(lx2,ly-4)} L${N(lx2,ly+4)}" stroke="#8593A8" stroke-width="1.3" stroke-linecap="round"/>`);
-    g.push(`<line x1="${lx1}" y1="${ly}" x2="${lx2.toFixed(1)}" y2="${ly}" stroke="#8593A8" stroke-width="1.4" stroke-linecap="round"/>`);
-    g.push(`<text x="${((lx1+lx2)/2).toFixed(1)}" y="${ly+14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5E7290">볼트 길이 ${R.len} mm${R.H.cone?" (머리 포함)":""}</text>`);
+    g.push(`<path d="M${N(lx1,ly-4)} L${N(lx1,ly+4)} M${N(lx2,ly-4)} L${N(lx2,ly+4)}" stroke="${DC.ink3}" stroke-width="1.3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${lx1}" y1="${ly}" x2="${lx2.toFixed(1)}" y2="${ly}" stroke="${DC.ink3}" stroke-width="1.4" stroke-linecap="round"/>`);
+    g.push(`<text x="${((lx1+lx2)/2).toFixed(1)}" y="${ly+14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${DC.dim}">볼트 길이 ${R.len} mm${R.H.cone?" (머리 포함)":""}</text>`);
   }
-  g.push(`<text x="${W-4}" y="14" text-anchor="end" font-size="10.5" font-weight="600" fill="#8593A8">${MAT[S.mat].label} · τu ${Math.round(tauOf(S.mat))} MPa</text>`);
+  g.push(`<text x="${W-4}" y="14" text-anchor="end" font-size="10.5" font-weight="600" fill="${DC.ink3}">${MAT[S.mat].label} · τu ${Math.round(tauOf(S.mat))} MPa</text>`);
   $("draw").innerHTML=g.join("");
 }
 
@@ -980,11 +1111,15 @@ function drawSection(){
    슬라이더
    ══════════════════════════════════════════════════════════ */
 /* Le 트랙 폭 — 기본은 3.2d지만, 긴 볼트에서는 길이 슬라이더가 Le를 그 위로 밀어올릴 수
-   있다. 도달 가능한 최대 물림까지 덮어야 썸이 끝에 박히거나 ARIA가 범위를 벗어나지 않는다. */
+   있다. 도달 가능한 최대 물림까지 덮어야 썸이 끝에 박히거나 ARIA가 범위를 벗어나지 않는다.
+   연질 모재(수지·알루미늄)에서는 적합 기준선 자체가 3.2d를 넘으므로 그것도 덮는다. */
 const leMax=()=>{
   if(!P||P.err)return 16;
-  const base=Math.max(P.d*3.2,8), reach=availLen();
-  return reach!=null?Math.max(base,reach):base;
+  let m=Math.max(P.d*3.2,8);
+  const reach=availLen();
+  if(reach!=null)m=Math.max(m,reach);
+  if(R&&isFinite(R.LeOk))m=Math.max(m,R.LeOk*1.08);
+  return m;
 };
 
 /* ── 체결부 치수 ─────────────────────────────────────────
@@ -996,8 +1131,11 @@ const lenOn   =()=>S.lenSlider&&!!P&&!P.err;
 const snapIn  =(list,v)=>list.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
 /* 머리 밑에서 쓸 수 있는 길이 = 체결 두께 + 물림 */
 const availLen=()=>(P&&!P.err&&P.len!=null)?P.len-headHOf():null;
-/* 볼트 길이 슬라이더 상한 — 호칭경 기준으로 잡고 표준 길이에 맞춘다 */
-const lenMax  =()=>{const t=Math.max(25,8*(P&&!P.err?P.d:5));
+/* 볼트 길이 슬라이더 상한 — 호칭경 기준으로 잡고 표준 길이에 맞춘다.
+   이미 입력된 길이가 그보다 길면 그 길이까지 덮어야 한다. 안 그러면 ARIA 범위를
+   벗어나고, 슬라이더를 한 번 건드린 순간 볼트가 조용히 짧아진다. */
+const lenMax  =()=>{const t=Math.max(25,8*(P&&!P.err?P.d:5),
+                                     (P&&!P.err&&P.len!=null)?P.len:0);
                     return BOLT_LEN.find(v=>v>=t)||BOLT_LEN[BOLT_LEN.length-1];};
 /* 판재는 최소한 관통해야 하므로 이 아래로는 못 줄인다 — 슬라이더 눈금으로도 쓴다.
    물림이 미설정이면 체결 두께도 아직 뜻이 없으므로 바닥을 걸지 않는다. */
@@ -1036,11 +1174,20 @@ function setLe(v){
   const a=availLen();
   if(a!=null)S.grip=Math.max(0,Math.round((a-S.Le)*100)/100);
 }
-function updateSlider(){
+/* 트랙 폭 캐시 — clientWidth는 레이아웃 강제 계산이다. 드래그 중에는 스타일을 쓴
+   직후 다시 읽어 프레임마다 리플로우가 두 번 일어나므로, 폭이 바뀔 수 있는 시점
+   (전체 렌더·리사이즈·슬라이더 펼침)에만 재측정하고 드래그 프레임은 캐시를 쓴다. */
+const TW={le:0,len:0};
+function measureTracks(){
+  TW.le =$("track").clientWidth||TW.le||300;
+  TW.len=$("ltrack").clientWidth||TW.len||300;
+}
+function updateSlider(measure){
   if(!R)return;
+  if(measure||!TW.le)measureTracks();
   /* 볼트 길이 트랙 — 켰을 때만. 체결 두께 0이 되는 지점을 눈금으로 찍는다 */
   if(lenOn()){
-    const lt=$("ltrack"), lw=lt.clientWidth||300, lmax=lenMax();
+    const lt=$("ltrack"), lw=TW.len, lmax=lenMax();
     const lat=v=>Math.max(0,Math.min(1,v/lmax))*lw;
     const lpx=lat(P.len!=null?P.len:lenMin());
     $("lthumb").style.left=lpx+"px";
@@ -1049,18 +1196,21 @@ function updateSlider(){
     $("ltickMin").style.left=lat(lenMin())+"px";
     lt.setAttribute("aria-valuenow",P.len!=null?P.len:0);
     lt.setAttribute("aria-valuemax",lmax);
-    lt.setAttribute("aria-valuetext",(P.len!=null?P.len+"mm":"미지정")+", 체결 두께 "+(R.Lk!=null?f1(Math.max(0,R.Lk)):"—")+"mm");
+    lt.setAttribute("aria-valuetext",(P.len!=null?P.len+"mm":"미지정")
+      +", 물림 "+f1(R.LeShow)+"mm"+(R.hasLe?"":" (가정)")
+      +", 체결 두께 "+(R.Lk!=null?f1(Math.max(0,R.Lk)):"—")+"mm");
   }
 
-  const max=leMax(), t=$("track"), w=t.clientWidth||300;
+  const max=leMax(), t=$("track"), w=TW.le;
   const at=v=>Math.max(0,Math.min(1,v/max))*w;
-  const px=at(R.hasLe?R.Le:R.LeOk);
+  const px=at(R.LeShow);
   $("thumb").style.left=px+"px";
   $("thumb").classList.toggle("ghost",!R.hasLe);
   $("fill").style.width=(R.hasLe?px:0)+"px";
 
-  /* 비나사부 상한 눈금 — 슬라이더가 왜 거기서 멈추는지 보이게 한다 */
-  const cap=leCap(), capShown=S.shank>0&&isFinite(cap)&&cap<max;
+  /* 물림 상한 눈금 — 비나사부뿐 아니라 볼트 길이만으로도 상한이 생긴다.
+     슬라이더가 왜 거기서 멈추는지 두 경우 모두 보이게 한다. */
+  const cap=leCap(), capShown=isFinite(cap)&&cap<max-0.01;
   $("tickCap").hidden=!capShown;
   if(capShown)$("tickCap").style.left=at(cap)+"px";
 
@@ -1082,7 +1232,7 @@ function updateSlider(){
   t.setAttribute("aria-valuemax",f1(max));
   t.setAttribute("aria-valuetext",R.hasLe
     ?f1(R.Le)+"mm, "+R.threads.toFixed(1)+"산, 판정 "+R.tag
-    :"미설정, 적합 기준 "+f1(R.LeOk)+"mm");
+    :"미설정, "+(R.reachCapped?"볼트 길이 한도 "+f1(R.LeShow):"적합 기준 "+f1(R.LeOk))+"mm 가정");
 }
 (function slider(){
   const t=$("track"); let drag=false,pid=null;
@@ -1093,7 +1243,8 @@ function updateSlider(){
     setLe(Math.max(.1,Math.round(frac(x)*leMax()*10)/10));
     render(true);
     const nowOk=R&&R.lvl==="ok";
-    if(haptic&&lastSide!==null&&nowOk!==wasOk){
+    /* 판정이 넘어가는 순간에만 진동·"탁!" — 같은 판정이 이어지는 프레임은 조용히 */
+    if(haptic&&nowOk!==wasOk){
       const th=$("thumb"); th.classList.add("pulse");
       setTimeout(()=>th.classList.remove("pulse"),260);
       if(navigator.vibrate)try{navigator.vibrate(nowOk?[10,40,16]:12)}catch(e){}
@@ -1102,11 +1253,10 @@ function updateSlider(){
         sn.classList.remove("go"); void sn.offsetWidth; sn.classList.add("go");
       }
     }
-    lastSide=nowOk;
   };
   let raf=null,px=null;
   t.addEventListener("pointerdown",e=>{
-    drag=true; pid=e.pointerId; lastSide=(R&&R.hasLe)?R.lvl==="ok":null;
+    drag=true; pid=e.pointerId;
     set(e.clientX,false); try{t.setPointerCapture(e.pointerId)}catch(_){} e.preventDefault();
   });
   window.addEventListener("pointermove",e=>{
@@ -1116,7 +1266,7 @@ function updateSlider(){
     raf=requestAnimationFrame(()=>{raf=null;if(drag)set(px,true);});
   },{passive:true});
   const end=()=>{
-    if(!drag)return; drag=false; lastSide=null;
+    if(!drag)return; drag=false;
     if(raf){cancelAnimationFrame(raf);raf=null;}
     try{if(pid!==null)t.releasePointerCapture(pid)}catch(_){} pid=null;
     render();                            // 드래그 종료 시 전체 갱신
@@ -1124,9 +1274,14 @@ function updateSlider(){
   window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
   t.addEventListener("keydown",e=>{
     const st=P&&!P.err?Math.max(.1,Math.round(P.d)/10):.5;
-    if(e.key==="ArrowRight"||e.key==="ArrowUp"){setLe(Math.round((S.Le+st)*10)/10);render();e.preventDefault();}
-    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){setLe(Math.max(0,Math.round((S.Le-st)*10)/10));render();e.preventDefault();}
-    if(e.key==="Home"){S.Le=0;render();e.preventDefault();}
+    const go=v=>{setLe(v);render();e.preventDefault();};
+    if(e.key==="ArrowRight"||e.key==="ArrowUp")go(Math.round((S.Le+st)*10)/10);
+    else if(e.key==="ArrowLeft"||e.key==="ArrowDown")go(Math.max(0,Math.round((S.Le-st)*10)/10));
+    /* 물릴 수 있는 끝까지 — 길이 미지정이면 상한이 없으니 트랙 끝으로 */
+    else if(e.key==="End"){const c=leCap(); go(isFinite(c)?c:leMax());}
+    else if(e.key==="PageUp")go(Math.round((S.Le+st*5)*10)/10);
+    else if(e.key==="PageDown")go(Math.max(0,Math.round((S.Le-st*5)*10)/10));
+    else if(e.key==="Home"){S.Le=0;render();e.preventDefault();}
   });
 })();
 
@@ -1156,13 +1311,25 @@ function updateSlider(){
   };
   window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
   t.addEventListener("keydown",e=>{
-    if(!lenOn()||P.len==null)return;
+    if(!lenOn())return;
     const ok=lenPicks();
     if(!ok.length)return;
+    const step=/^(ArrowRight|ArrowUp|ArrowLeft|ArrowDown|Home|End)$/.test(e.key);
+    if(!step)return;
+    e.preventDefault();
+    /* 길이가 아직 없으면 첫 키 입력이 길이를 세운다 — 이게 없으면 키보드만으로는
+       길이를 영원히 지정할 수 없다 (포인터 전용 기능이 되어 버린다) */
+    if(P.len==null){
+      if(setBoltLen(Math.max(4*P.d,ok[0])))render();
+      return;
+    }
     /* 현재 길이가 후보에 없을 수도 있으니 후보 안에서 가장 가까운 칸을 기준으로 잡는다 */
     const i=ok.indexOf(snapIn(ok,P.len));
-    if(e.key==="ArrowRight"||e.key==="ArrowUp"){if(setBoltLen(ok[Math.min(ok.length-1,i+1)]))render();e.preventDefault();}
-    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){if(setBoltLen(ok[Math.max(0,i-1)]))render();e.preventDefault();}
+    const j=e.key==="Home"?0
+           :e.key==="End"?ok.length-1
+           :(e.key==="ArrowRight"||e.key==="ArrowUp")?Math.min(ok.length-1,i+1)
+           :Math.max(0,i-1);
+    if(setBoltLen(ok[j]))render();
   });
 })();
 $("leReset").onclick=()=>{S.Le=0;render();};
@@ -1194,9 +1361,12 @@ const SRC_TIER=[
   {t:3,star:"★★★★☆", name:"전문 자료 · 제조사 TDS", ex:"Bossard · Bolt Science · Henkel"},
   {t:4,star:"검증 필요",name:"자체 경험 보정값",      ex:"실물 파단 시험으로 재교정해야 함"}
 ];
+/* 배지에 title만 달면 터치 기기에서는 근거 설명을 볼 방법이 없다.
+   설명은 아래 "출처 목록"에 항상 펼쳐 두고, 배지에는 aria-label로도 붙인다. */
 const srcTag=(...keys)=>`<span class="srcs">`+keys.map(k=>{
   const s=SRC[k];
-  return `<i class="src t${s.t}" title="${esc(s.label+" — "+s.note)}">${esc(s.label)}</i>`;
+  const full=s.label+" — "+s.note;
+  return `<i class="src t${s.t}" title="${esc(full)}" aria-label="${esc("근거: "+full)}">${esc(s.label)}</i>`;
 }).join("")+`</span>`;
 
 function writeBasis(){
@@ -1235,11 +1405,24 @@ function writeBasis(){
       +`Ats = 0.875 × π × ${R.d} × ${f1(R.Le)} × ${KNOCK} = ${f2(R.Ats)} mm²<br>`
       +`탭 내력 <b>${f0(R.Fstrip)} N</b> / 축력 ${f0(R.Fhead)} N = 여유 `
       +`<span class="${R.margin<STRIP_SF?"bad":"good"}">${f2(R.margin)}배</span>`
-      +`<br><span class="mut">0.875는 60° 나사 기하에서 유도된 값(0.5 + 0.57735·0.649519/2)이고, `
+      +`<br><span class="mut">0.875는 60° 나사 기하에서 유도된 값(0.5 + 0.57735 × 0.649519 = 0.5 + 0.375)이고, `
       +`<b>${KNOCK}만 자체 경험 보정</b>입니다 (문헌 0.6~0.85). τu = 0.6σu도 규격이 아닌 공학 통칙입니다.</span>`
       +srcTag("iso261","jis","own"));
+  }else if(R.LeAssume!=null){
+    /* Le 미설정이어도 "탭 충분"을 무조건 가정하지는 않는다 — 볼트가 내줄 수 있는
+       물림이 기준에 못 미치면 그 한도로 축력을 묶고, 그 사실을 여기에 남긴다 */
+    b.push(`<span class="st">${sn()} · 나사산 뽑힘</span>`
+      +`<span class="wr">Le 미설정</span> — 볼트 길이로 도달 가능한 최대 물림 `
+      +`<b>${f1(R.LeReach)} mm</b>${R.ls>0?` (비나사 ${f1(R.ls)} + 불완전 나사 2p 제외)`:``}<br>`
+      +`가정 물림 = min(적합 기준 ${f1(R.LeOk)}, 도달 가능 ${f1(R.LeReach)}) = <b>${f1(R.LeAssume)} mm</b>`
+      +(R.reachLimited
+        ? `<br><span class="bad">이 물림으로는 뽑힘 안전율 ${STRIP_SF.toFixed(1)}을 못 지키므로 축력을 `
+          +`<b>${f0(R.Feff)} N</b>으로 하향 제한했습니다 — 볼트 길이가 토크를 결정한 경우입니다.</span>`
+        : `<br>이 물림이면 뽑힘 안전율 ${STRIP_SF.toFixed(1)}을 만족하므로 축력을 깎지 않았습니다.`)
+      +`<br><span class="mut">판재 두께 0을 가정한 최선의 경우입니다. 실제 물림을 넣으면 이 가정이 사라집니다.</span>`
+      +srcTag("iso261","own"));
   }else{
-    b.push(`<span class="st">${sn()} · 나사산 뽑힘</span><span class="wr">Le 미설정으로 미실시.</span>`);
+    b.push(`<span class="st">${sn()} · 나사산 뽑힘</span><span class="wr">Le·볼트 길이 미설정으로 미실시 — 탭 충분 가정.</span>`);
   }
   if(R.Db){
     const pgStd=PG_VDI.has(S.mat);
@@ -1253,7 +1436,13 @@ function writeBasis(){
       +`</span>`
       +srcTag("vdi",pgStd?"iso4762":"own"));
   }else{
-    b.push(`<span class="st">${sn()} · 좌면 면압</span><span class="wr">${R.H.cone?"접시머리 원추 좌면 — 미검토":"좌면 형상 미정"}</span>`);
+    b.push(`<span class="st">${sn()} · 좌면 면압</span><span class="wr">${R.H.cone?"접시머리 원추 좌면 — 미검토":"좌면 형상 미정"}</span>`
+      +(R.H.cone&&R.dLoad
+        ? `<br><span class="mut">원추 좌면은 면압 분포를 이 모델로 다룰 수 없어 판정하지 않습니다. `
+          +`단, 부재 강성(δP)에는 하중이 판재로 퍼지기 시작하는 원이 필요하므로 `
+          +`ISO 10642 이론 머리 지름 <b>${f1(R.dLoad)} mm (2.24d)</b>를 씁니다 — 면압 미검토와 별개의 가정입니다.</span>`
+          +srcTag("iso10642","own")
+        : ``));
   }
   /* 비나사부를 입력했을 때만 — 그립 기하와 탄성 계산의 근거 */
   if(R.ls>0){
@@ -1269,11 +1458,14 @@ function writeBasis(){
           +`<span class="mut">(머리 + 비나사부 ${f1(Math.min(R.ls,R.Lk))} + 미물림 나사 ${f1(R.lg)} + 물림부)</span>`;
       }
       if(R.dP){
-        s+=`<br>부재 컴플라이언스 δP = <b>${(R.dP*1e6).toFixed(2)}</b> ×10⁻⁶ mm/N · `
+        s+=`<br>부재 컴플라이언스 δP = <b>${(R.dP*1e6).toFixed(2)}</b> ×10⁻⁶ mm/N `
+          +`<span class="mut">(하중 도입 지름 ${f1(R.dLoad)} mm)</span> · `
           +`하중계수 Φ = δP/(δS+δP) = <b>${(R.phi*100).toFixed(0)}%</b><br>`
           +`이완 손실 F_Z = f_Z ${(FZ_UM+(S.washer!=="none"?FZ_UM_W:0)).toFixed(1)} µm ÷ (δS+δP) = `
           +`<b>${f0(R.Fz)} N</b> = 축력의 ${(R.embedCalc*100).toFixed(1)}% `
-          +`<span class="mut">(고정값 ${(EMBED*100).toFixed(0)}% 대비)</span>`
+          +(R.embedCapped
+            ? `<span class="wr">(모델 상한 50%에 걸렸습니다 — 이 형상은 탄성 이완 모델의 적용 범위 밖입니다)</span>`
+            : `<span class="mut">(고정값 ${(EMBED*100).toFixed(0)}% 대비)</span>`)
           +`<br><span class="mut">각도법 참고 — 밀착 후 필요 회전각 약 <b>${R.turnDeg.toFixed(0)}°</b> `
           +`(볼트 신장 + 부재 압축 + 샹크 비틀림). 토크법에는 쓰이지 않는 참고값입니다.</span>`;
       }
@@ -1282,6 +1474,10 @@ function writeBasis(){
         +(R.usePhi?` · 하중계수도 반영 중`:``)+`.<br>`
         +`δS는 VDI 2230의 구간 분해를, δP는 Rötscher 30° 압축 원추(Shigley)를 씁니다 — `
         +`VDI의 대체 원통식은 접합면 외경 D_A에 따라 분기하므로 채택하지 않았습니다. `
+        +(R.H.cone
+          ? `접시머리는 좌면 면압을 판정하지 않지만 δP에는 하중 도입 원이 필요해 `
+            +`<b>ISO 10642 이론 머리 지름 2.24d</b>를 썼습니다 — 원추 접촉을 평좌면으로 치환한 가정입니다. `
+          : ``)
         +`f_Z ${FZ_UM} µm은 원표 대조가 필요한 가정값입니다.</span>`
         +srcTag("vdi","roet",R.H.cone?"iso10642":"iso4762","own");
     }
@@ -1307,14 +1503,29 @@ function writeBasis(){
       +srcTag("own","vdi"));
   }
   b.push(`<span class="st">${sn()} · 필요 최소 물림</span>Le,min = <b>${f1(R.LeMin)} mm</b> = ${f2(R.LeMin/R.d)}d`
-    +`<br><span class="mut">6번 뽑힘 모델을 "볼트가 먼저 파단"하는 조건으로 역산한 값이라 근거 등급도 6번과 같습니다.</span>`
+    +(R.LeReach!=null
+      ? `<br>볼트 길이로 도달 가능한 최대 물림 = <b>${f1(R.LeReach)} mm</b> `
+        +`<span class="${R.LeReach<R.LeMin?"bad":R.LeReach<R.LeOk?"wr":"good"}">`
+        +(R.LeReach<R.LeMin?`(최소에 미달 — 볼트가 짧습니다)`
+         :R.LeReach<R.LeOk?`(적합 기준 ${f1(R.LeOk)} mm에 미달)`
+         :`(적합 기준 ${f1(R.LeOk)} mm까지 여유 있음)`)+`</span>`
+      : ``)
+    +`<br><span class="mut">뽑힘 모델을 "볼트가 먼저 파단"하는 조건으로 역산한 값이라 근거 등급도 뽑힘 항목과 같습니다. `
+    +(R.H.f<1?`볼트 파단 하중에 머리 형상 계수 ${R.H.f.toFixed(2)}를 적용했으므로 예상 파단 토크와 기준이 일치합니다.`
+             :`볼트 파단 하중은 Fu 그대로입니다.`)+`</span>`
     +srcTag("iso261","own"));
 
   const legend=SRC_TIER.map(x=>
     `<div class="lg-row"><i class="src t${x.t}">${x.star}</i>`
     +`<span><b>${esc(x.name)}</b> <span class="mut">${esc(x.ex)}</span></span></div>`).join("");
+  /* 출처 목록 — 배지 title은 터치에서 안 열리므로 설명을 항상 보이게 둔다 */
+  const gloss=Object.keys(SRC)
+    .sort((a,b)=>SRC[a].t-SRC[b].t)
+    .map(k=>`<div class="lg-row"><i class="src t${SRC[k].t}">${esc(SRC[k].label)}</i>`
+      +`<span class="mut">${esc(SRC[k].note)}</span></div>`).join("");
   $("basis").innerHTML=b.join("<hr>")
     +`<hr><div class="src-legend"><span class="st">근거 등급</span>${legend}`
+    +`<div class="src-gloss"><span class="st">출처 목록</span>${gloss}</div>`
     +`<p class="lg-note">치수·재료 물성은 공식 규격에서, 응력·면압 판정은 VDI 2230에서 옵니다. `
     +`반면 <b>대표식 T = K·F·d는 업계 관행</b>이고, 판정을 실제로 좌우하는 보정계수 `
     +`${KNOCK}·머리 형상 계수·안전율 ${STRIP_SF.toFixed(1)}은 규격 근거가 없는 자체값입니다. `
@@ -1333,11 +1544,15 @@ function fillMeas(){
     tb.innerHTML=`<tr><td colspan="5" class="mut" style="text-align:center;padding:18px">M${R.d} 시험 데이터 없음</td></tr>`;
     $("measSumm").textContent=""; $("measWarn").textContent=""; return;
   }
-  const devs=[]; let unknown=0; const html=[];
+  const devs=[]; let unknown=0, assumed=0; const html=[];
   MEAS.forEach((m,i)=>{
     if(m.d!==R.d)return;
     const q=MEAS_PRED[i];
-    const head=`<td>${m.use}<br><span class="mut" style="font-size:11px">${HEAD[m.head].label} · ${m.mat||"재질 미상"}</span></td>`
+    if(q.gaps.length)assumed++;
+    /* 기록이 없어 가정으로 채운 항목을 행마다 그대로 적는다 — 재질만 경고하고
+       강도구분·체결조건을 조용히 12.9·K0.20으로 두면 편차를 잘못 읽게 된다 */
+    const head=`<td>${m.use}<br><span class="mut" style="font-size:11px">${HEAD[m.head].label} · ${m.mat||"재질 미상"}`
+      +(q.gaps.length?`<br>가정: ${q.gaps.join(" · ")}`:"")+`</span></td>`
       +`<td class="mut">${f1(m.Le)}</td><td><b>${m.T.toFixed(2)}</b></td>`;
     if(q.known){
       devs.push(q.dev);
@@ -1354,18 +1569,27 @@ function fillMeas(){
     $("measSumm").innerHTML=`재질이 확인된 ${devs.length}건 평균 편차 <b>${avg>0?"+":""}${avg.toFixed(0)}%</b>. `
       +`예상 파단은 원리적으로 정밀도가 낮으므로 ±20~40%는 정상 범위입니다.`;
   }else $("measSumm").textContent="";
-  $("measWarn").innerHTML=unknown
-    ? `<b>${unknown}건은 행별 모재가 기록되어 있지 않습니다.</b> 예상값을 S45C~SS400 범위로만 표시하고 편차는 계산하지 않았습니다. `
-      +`알루미늄이면 값이 절반 이하로 내려가 결론이 완전히 뒤집힙니다. <b>행별 재질 기록이 이 시험의 가장 시급한 보완 사항입니다.</b>`
-    : "";
+  const notes=[];
+  if(unknown)
+    notes.push(`<b>${unknown}건은 행별 모재가 기록되어 있지 않습니다.</b> 예상값을 S45C~SS400 범위로만 표시하고 편차는 계산하지 않았습니다. `
+      +`알루미늄이면 값이 절반 이하로 내려가 결론이 완전히 뒤집힙니다.`);
+  if(assumed)
+    notes.push(`<b>${assumed}건은 재질 외에도 강도구분·체결 조건이 기록되지 않아 `
+      +`${MEAS_ASSUME.cls} · K ${KF[MEAS_ASSUME.k].k.toFixed(2)}로 가정했습니다.</b> `
+      +`강도구분 가정은 볼트 지배 구간에서 파단 하중을 최대 1.5배까지, 체결 조건은 K를 통해 토크를 직접 흔듭니다. `
+      +`행마다 무엇을 가정했는지는 위 표에 적었습니다.`);
+  if(notes.length)
+    notes.push(`<b>행별 재질·강도구분·체결 조건 기록이 이 시험의 가장 시급한 보완 사항입니다.</b>`);
+  $("measWarn").innerHTML=notes.join(" ");
 }
 
 /* ══════════════════════════════════════════════════════════
    바텀시트
    ══════════════════════════════════════════════════════════ */
-let sheetMode=null;
+let sheetMode=null, sheetPrev=null;
 function openSheet(mode){
   sheetMode=mode;
+  sheetPrev=document.activeElement;             // 닫을 때 돌려줄 포커스
   const body=$("sheetBody");
   body.innerHTML="";
   $("sheetTitle").textContent={mat:"탭 모재",head:"머리 형상",k:"체결 조건",washer:"와셔",lock:"나사 고정제"}[mode];
@@ -1402,16 +1626,33 @@ function openSheet(mode){
   $("scrim").classList.add("on"); sh.classList.add("on");
   sh.removeAttribute("aria-hidden"); sh.removeAttribute("inert");
   document.body.style.overflow="hidden";
+  /* 포커스를 시트 안으로 옮기지 않으면 키보드·스크린리더 사용자에게는 시트가
+     열렸다는 사실도, 안의 항목도 닿지 않는다. 선택된 항목부터 잡아 준다. */
+  const first=body.querySelector(".opt.on")||body.querySelector(".opt")||$("sheetX");
+  try{first.focus({preventScroll:true});}catch(_){try{first.focus();}catch(__){}}
 }
 function closeSheet(){
   const sh=$("sheet");
   $("scrim").classList.remove("on"); sh.classList.remove("on");
   sh.setAttribute("aria-hidden","true"); sh.setAttribute("inert","");
   document.body.style.overflow=""; sheetMode=null; sh.style.transform="";
+  const back=sheetPrev; sheetPrev=null;
+  if(back&&back.focus)try{back.focus({preventScroll:true});}catch(_){}
 }
+/* 시트를 연 행으로 포커스가 돌아가야 하므로 열기 버튼 자신이 sheetPrev가 된다 */
 document.querySelectorAll("[data-sheet]").forEach(b=>b.onclick=()=>openSheet(b.dataset.sheet));
 $("scrim").onclick=closeSheet; $("sheetX").onclick=closeSheet;
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sheetMode)closeSheet();});
+document.addEventListener("keydown",e=>{
+  if(!sheetMode)return;
+  if(e.key==="Escape"){closeSheet();return;}
+  /* 포커스 트랩 — 시트가 모달(aria-modal)이라고 선언했으면 실제로 갇혀야 한다 */
+  if(e.key!=="Tab")return;
+  const f=[...$("sheet").querySelectorAll("button")].filter(el=>el.offsetParent!==null);
+  if(!f.length)return;
+  const first=f[0], last=f[f.length-1], a=document.activeElement;
+  if(e.shiftKey&&(a===first||!$("sheet").contains(a))){last.focus({preventScroll:true});e.preventDefault();}
+  else if(!e.shiftKey&&(a===last||!$("sheet").contains(a))){first.focus({preventScroll:true});e.preventDefault();}
+});
 
 (function swipe(){
   const g=$("grab"), sh=$("sheet"); let sy=0,drag=false,dy=0;
@@ -1468,15 +1709,23 @@ $("shankClr").onclick=()=>{S.shank=0;$("shank").value="";render();};
 $("lenTgl").onclick=()=>{
   S.lenSlider=!S.lenSlider;
   render();
-  /* 숨어 있던 동안은 폭이 0이라 썸 위치를 못 잡는다 — 펼친 뒤 한 번 더 */
-  if(S.lenSlider)requestAnimationFrame(updateSlider);
+  /* 숨어 있던 동안은 폭이 0이라 썸 위치를 못 잡는다 — 펼친 뒤 다시 재서 잡는다 */
+  if(S.lenSlider)requestAnimationFrame(()=>updateSlider(true));
 };
 
 const bar=$("bar");
 addEventListener("scroll",()=>bar.classList.toggle("stuck",scrollY>4),{passive:true});
-addEventListener("resize",()=>{updateSlider();buildSegs();updateQuickNav();});
+addEventListener("resize",()=>{updateSlider(true);buildSegs();updateQuickNav();});
+/* 탭을 닫거나 백그라운드로 보낼 때는 디바운스를 기다리지 않고 바로 쓴다 */
+addEventListener("pagehide",saveState);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)saveState();});
 
 (function init(){
+  loadState();
+  /* 저장값을 화면 입력에도 되돌린다 — S만 채우면 입력칸이 빈 채로 어긋난다 */
+  $("spec").value=S.spec;
+  if(S.load>0) $("load").value=S.load;
+  if(S.shank>0)$("shank").value=S.shank;
   render();
-  requestAnimationFrame(()=>{buildSegs();updateSlider();updateQuickNav();});
+  requestAnimationFrame(()=>{buildSegs();updateSlider(true);updateQuickNav();});
 })();
