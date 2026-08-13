@@ -603,6 +603,12 @@ function render(fast){
     const a=P.len-headHOf();
     if(S.grip>a)S.grip=Math.max(0,a);
     S.Le=Math.max(0,Math.round((a-S.grip)*100)/100);
+    /* 나사부보다 깊게 물릴 수는 없다 — 넘치면 그만큼이 판재로 간다 */
+    const cap=leCap();
+    if(S.Le>cap+0.005){
+      S.Le=Math.max(0,Math.round(cap*100)/100);
+      S.grip=Math.max(0,Math.round((a-S.Le)*100)/100);
+    }
   }
 
   R=compute({d:P.d,pitch:P.pitch,cls:S.cls,head:S.head,mat:S.mat,k:S.k,washer:S.washer,lock:S.lock,
@@ -651,8 +657,10 @@ function render(fast){
   $("gripRow").hidden=R.Lk==null;
   if(R.Lk!=null)$("gripRead").textContent=f1(Math.max(0,R.Lk))+" mm";
   $("leRead").textContent=R.hasLe?f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d):"미설정";
+  const cap=leCap(), atCap=S.shank>0&&isFinite(cap)&&R.hasLe&&S.Le>=cap-0.05;
   $("leNote").textContent =
       !R.okPossible ? "다른 검토 항목이 막고 있어 Le만으로는 적합해지지 않습니다"
+    : atCap         ? "비나사부 "+f1(S.shank)+" + 불완전 나사 "+f1(2*R.p)+" mm — 물림은 "+f1(cap)+" mm까지입니다"
     : R.hasLe       ? R.threads.toFixed(1)+"산 물림 · 최소 "+f1(R.LeMin)+" / 적합 "+f1(R.LeOk)+" mm"
     :                 "밀어서 실제 물림 길이를 맞추세요";
   $("leReset").hidden=!R.hasLe;
@@ -995,11 +1003,17 @@ function setBoltLen(v){
   S.spec=specWithLen(L); $("spec").value=S.spec;
   return true;
 }
-/* Le 상한 — 볼트 밖으로 물릴 수는 없다 */
-function clampLe(v){
+/* Le 상한 — 볼트 밖으로도, 나사가 없는 비나사부 구간으로도 물릴 수 없다.
+   비나사부가 볼트보다 길면 애초에 성립하지 않는 입력이라 검토 항목이 따로 잡는다. */
+function leCap(){
   const a=availLen();
-  return Math.max(0,Math.min(v,a==null?Infinity:a));
+  if(a==null||!S.shank)return a==null?Infinity:a;
+  /* 불완전 나사부 2피치까지 빼야 나사 런아웃 검사와 기준이 맞는다 —
+     안 빼면 슬라이더를 끝까지 민 순간 바로 NG가 뜬다 */
+  const th=a-S.shank-2*(P.pitch||0);
+  return th>0?th:a;
 }
+function clampLe(v){ return Math.max(0,Math.min(v,leCap())); }
 /* Le 슬라이더 전용 — 길이는 그대로 두고 체결 두께가 차이를 흡수한다.
    이렇게 갱신해 둬야 render의 "길이 우선" 유도와 어긋나지 않는다. */
 function setLe(v){
@@ -1029,6 +1043,11 @@ function updateSlider(){
   $("thumb").style.left=px+"px";
   $("thumb").classList.toggle("ghost",!R.hasLe);
   $("fill").style.width=(R.hasLe?px:0)+"px";
+
+  /* 비나사부 상한 눈금 — 슬라이더가 왜 거기서 멈추는지 보이게 한다 */
+  const cap=leCap(), capShown=S.shank>0&&isFinite(cap)&&cap<max;
+  $("tickCap").hidden=!capShown;
+  if(capShown)$("tickCap").style.left=at(cap)+"px";
 
   const pMin=at(R.LeMin), pOk=at(R.LeOk);
   $("tickMin").style.left=pMin+"px";
@@ -1424,6 +1443,8 @@ $("load").addEventListener("input",e=>{
 $("loadClr").onclick=()=>{S.loadType="none";S.load=0;$("load").value="";render();};
 $("shank").addEventListener("input",e=>{
   S.shank=Math.max(0,parseFloat(e.target.value)||0);
+  /* 나사부가 짧아졌으면 물림을 그 안으로 당긴다 — 없는 나사산에 물릴 수는 없다 */
+  if(S.Le>0)setLe(S.Le);
   render();
 });
 $("shankClr").onclick=()=>{S.shank=0;$("shank").value="";render();};
