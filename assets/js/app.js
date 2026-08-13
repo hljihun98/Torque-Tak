@@ -368,6 +368,10 @@ function compute(o,_probe){
     else if(Lk<=0)
       add("bad","나사 런아웃","물림 "+o.Le.toFixed(1)+" mm가 머리 밑 길이 "+Lu.toFixed(1)+" mm보다 깁니다 — 사양을 확인하세요",
           "체결 두께 0","str",FIX.thlen);
+    else if(ls>=Lu)
+      /* 설계 문제가 아니라 입력이 성립하지 않는 경우 — 음수 나사부 길이를 보여주지 않는다 */
+      add("bad","비나사부 입력","비나사부 "+ls.toFixed(1)+" mm가 머리 밑 길이 "+Lu.toFixed(1)
+          +" mm 이상입니다 — 나사부가 남지 않는 볼트입니다",ls.toFixed(1)+" mm","str",FIX.thlen);
     else{
       /* 실물 볼트는 샹크와 완전나사부 사이에 불완전 나사부가 1~2피치 있다 */
       const lsEff=ls+2*p, slack=Lk-lsEff;
@@ -638,7 +642,16 @@ function render(fast){
 
   const lm=lenMode();
   $("leTitle").textContent=lm?"볼트 길이":"암나사 물림 깊이 Le";
-  $("gripWrap").hidden=S.smode!=="len";
+  /* 체결 두께는 양쪽 모드에서 다 보여준다. Le 모드에서는 유도값이라
+     "길이 12인데 물림이 6.2"가 어디로 갔는지 바로 읽힌다. 여기에 값을
+     쓰는 순간 판재가 고정이라는 뜻이므로 슬라이더가 길이를 밀도록 바뀐다. */
+  const gi=$("grip");
+  $("gripWrap").hidden = P.len==null;
+  $("gripLbl").textContent = lm?"체결 두께":"체결 두께 (유도값)";
+  if(!lm && R.Lk!=null && R.Lk>0){
+    S.grip=Math.round(R.Lk*10)/10;       // 모드를 바꿔도 값이 튀지 않게 상태까지 맞춰둔다
+    if(document.activeElement!==gi) gi.value=f1(R.Lk);
+  }
   $("leRead").textContent = lm ? P.len+" mm · 물림 "+f1(R.Le)+" mm"
     : R.hasLe ? f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d) : "미설정";
   $("leNote").textContent =
@@ -903,11 +916,13 @@ function drawSection(){
     }
     const sx=plateL+inW;
     g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?"#D92D20":"#5E7290"}" stroke-width="1.6"/>`);
-    /* 비나사부 치수 — 머리 밑에서 나사가 시작되는 지점까지 */
-    const uy=cy-bh-16, c2=over?"#D92D20":"#5E7290";
+    /* 비나사부 치수 — 머리 밑에서 나사가 시작되는 지점까지.
+       볼트보다 긴 값이 들어오면 치수가 무의미하므로 성립하지 않는다고 적는다. */
+    const uy=cy-bh-16, c2=over?"#D92D20":"#5E7290", impossible=R.Lu!=null&&R.ls>=R.Lu;
     g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(sx,uy-4)} L${N(sx,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
     g.push(`<line x1="${headR}" y1="${uy}" x2="${sx.toFixed(1)}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
-    g.push(`<text x="${((headR+sx)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">비나사부 ${f1(R.ls)}</text>`);
+    g.push(`<text x="${((headR+sx)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
+      +`비나사부 ${f1(R.ls)}${impossible?" — 길이 초과":""}</text>`);
   }
   /* 와셔 */
   if(wOn) g.push(`<rect x="${plateL-wThk}" y="${cy-wRad}" width="${wThk}" height="${wRad*2}" rx="1.5" fill="#8FA6C4"/>`);
@@ -1373,6 +1388,9 @@ $("shank").addEventListener("input",e=>{
 $("shankClr").onclick=()=>{S.shank=0;$("shank").value="";render();};
 $("grip").addEventListener("input",e=>{
   S.grip=Math.max(0,parseFloat(e.target.value)||0);
+  /* 체결 두께를 직접 친다는 건 판재를 고정하겠다는 뜻 — 슬라이더가 길이를 밀게 한다.
+     Le 조정으로 돌아가려면 위 세그먼트를 누르면 된다. */
+  if(S.grip>0&&P&&!P.err&&P.len!=null)S.smode="len";
   render();
 });
 
