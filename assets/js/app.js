@@ -690,7 +690,7 @@ function updateShankUI(){
   if(R){
     if(R.len==null) note="볼트 길이를 입력해야 체결 두께를 알 수 있습니다 — 예: M5-12";
     else if(!R.hasLe) note="물림 깊이 Le를 설정해야 체결 두께를 알 수 있습니다";
-    else if(!R.shankOn) note="체결 두께가 0 이하입니다 — 길이와 Le를 확인하세요";
+    else if(!R.shankOn) note="체결 두께가 0입니다 — 판재 없이 탭에 직접 조이는 형상이면 비나사부가 들어갈 자리가 없습니다";
     else if(SLV_RANK[S.slevel]>=1&&!R.useEmbed) note="좌면 지름을 모르는 형상이라 부재 강성을 못 구합니다 — 기하 검사만 적용됩니다";
     else if(R.useEmbed) note=desc.desc+" · 현재 이완 손실 "+(R.embedUse*100).toFixed(1)+"% (고정값 10% 대신)";
   }
@@ -907,10 +907,11 @@ function drawSection(){
   if(R.shankOn){
     const gw=blkL-plateL, frE=(R.ls+2*R.p)/R.Lk, over=frE>1;
     const inW=gw*Math.min(1,R.ls/R.Lk);          // 실제 비나사부
-    g.push(`<rect x="${plateL}" y="${cy-rMaj}" width="${inW.toFixed(1)}" height="${rMaj*2}" fill="#8FA6C4"/>`);
+    const sh=rMaj/2, sy0=cy-sh;                  // 몸통 두께의 절반으로 얇게 표시
+    g.push(`<rect x="${plateL}" y="${sy0.toFixed(1)}" width="${inW.toFixed(1)}" height="${(sh*2).toFixed(1)}" fill="#8FA6C4"/>`);
     if(over){
       const ow=Math.min(gw*(frE-1),eng);         // 불완전 나사까지 포함해 탭을 파고든 만큼
-      g.push(`<rect x="${blkL}" y="${cy-rMaj}" width="${ow.toFixed(1)}" height="${rMaj*2}" fill="#D92D20" opacity=".5"/>`);
+      g.push(`<rect x="${blkL}" y="${sy0.toFixed(1)}" width="${ow.toFixed(1)}" height="${(sh*2).toFixed(1)}" fill="#D92D20" opacity=".5"/>`);
       /* 위는 물림 산수·좌면 압괴 라벨이, 아래 dy부터는 치수선이 쓴다. 그 사이 왼쪽이 빈다. */
       g.push(`<text x="${plateL}" y="${(cy+bh+11).toFixed(1)}" font-size="9.5" font-weight="700" fill="#D92D20">샹크 간섭</text>`);
     }
@@ -996,6 +997,13 @@ function setBoltLen(v){
   S.spec=specWithLen(L); $("spec").value=S.spec;
   return true;
 }
+/* Le 모드에서도 슬라이더를 밀면 볼트가 길어져야 한다.
+   체결 두께를 고정한 채 L = 머리 + 체결 두께 + Le 로 사양 길이를 따라 쓴다. */
+function syncLenFromLe(){
+  if(S.smode==="len"||!P||P.err||P.len==null)return;
+  const L=Math.round((headHOf()+Math.max(0,S.grip)+S.Le)*10)/10;
+  if(L>0&&L!==P.len){S.spec=specWithLen(L); $("spec").value=S.spec;}
+}
 function updateSlider(){
   if(!R)return;
   /* 길이 모드는 Le 축을 (머리 + 체결 두께)만큼 평행이동한 것뿐이라
@@ -1043,7 +1051,8 @@ function updateSlider(){
       if(!setBoltLen(S.grip+headHOf()+frac(x)*leMax()))return;
       render(true);
     }else{
-      S.Le=Math.max(.1,Math.round(frac(x)*leMax()*10)/10); render(true);
+      S.Le=Math.max(.1,Math.round(frac(x)*leMax()*10)/10);
+      syncLenFromLe(); render(true);
     }
     const nowOk=R&&R.lvl==="ok";
     if(haptic&&lastSide!==null&&nowOk!==wasOk){
@@ -1083,9 +1092,9 @@ function updateSlider(){
       return;
     }
     const st=P&&!P.err?Math.max(.1,Math.round(P.d)/10):.5;
-    if(e.key==="ArrowRight"||e.key==="ArrowUp"){S.Le=Math.round((S.Le+st)*10)/10;render();e.preventDefault();}
-    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){S.Le=Math.max(0,Math.round((S.Le-st)*10)/10);render();e.preventDefault();}
-    if(e.key==="Home"){S.Le=0;render();e.preventDefault();}
+    if(e.key==="ArrowRight"||e.key==="ArrowUp"){S.Le=Math.round((S.Le+st)*10)/10;syncLenFromLe();render();e.preventDefault();}
+    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){S.Le=Math.max(0,Math.round((S.Le-st)*10)/10);syncLenFromLe();render();e.preventDefault();}
+    if(e.key==="Home"){S.Le=0;render();e.preventDefault();}   /* 미설정 복귀는 볼트를 줄이지 않는다 */
   });
 })();
 $("leReset").onclick=()=>{S.Le=0;render();};
