@@ -102,11 +102,14 @@
     </div>
     <div class="draw-box"><svg id="draw" viewBox="0 0 340 200" role="img" aria-label="볼트 체결부 단면도"></svg></div>
     <div class="le-ctl">
-      <div class="seg sm" id="segMode"><div class="seg-ind" id="indMode"></div></div>
-      <div class="grip-in" id="gripWrap" hidden>
-        <span id="gripLbl">체결 두께</span>
-        <input id="grip" type="number" inputmode="decimal" min="0" step="0.5" placeholder="0" aria-label="체결 두께">
-        <span>mm</span>
+      <div id="lenWrap" hidden>
+        <div class="sl-h"><span>볼트 길이</span><b id="lenRead">—</b></div>
+        <div class="track track-sm" id="ltrack" role="slider" aria-label="볼트 길이" tabindex="0" aria-valuemin="0" aria-valuenow="0">
+          <div class="rail"><i class="fill" id="lfill" style="width:0"></i></div>
+          <div class="tick tick-min" id="ltickMin"></div>
+          <div class="thumb" id="lthumb"></div>
+        </div>
+        <div class="sl-h"><span>암나사 물림 깊이 Le</span><b id="leRead2">—</b></div>
       </div>
       <div class="track" id="track" role="slider" aria-label="유효 물림 깊이" tabindex="0" aria-valuemin="0" aria-valuenow="0">
         <div class="rail"><i class="fill" id="fill" style="width:0"></i></div>
@@ -119,10 +122,12 @@
         <span class="tick-lbl min" id="lblMin">최소</span>
         <span class="tick-lbl ok" id="lblOk">적합 기준</span>
       </div>
+      <div class="sl-h grip-h" id="gripRow" hidden><span>체결 두께 <i>유도값</i></span><b id="gripRead">—</b></div>
       <div class="le-foot">
         <span class="le-note" id="leNote">밀어서 실제 물림 길이를 맞추세요</span>
         <button class="le-reset" id="leReset" hidden>미설정으로</button>
       </div>
+      <button class="le-opt" id="lenTgl">볼트 길이도 슬라이더로 조절</button>
     </div>
   </section>
 
