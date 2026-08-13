@@ -566,7 +566,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 const S={spec:"M5-12",cls:"12.9",head:"std",mat:"S45C",k:"dry",washer:"none",lock:"none",
          preload:70,Le:0,loadType:"none",load:0,headAuto:true,
          shank:0,slevel:"embed",     // shank 0 = 비나사부 미고려
-         lenSlider:true};            // 볼트 길이도 슬라이더로 조절할지 (선택 · 기본 켜짐)
+         lenSlider:true,             // 볼트 길이도 슬라이더로 조절할지 (선택 · 기본 켜짐)
+         grip:0};                    // 유지되는 체결 두께 — 길이를 바꾸면 물림이 이걸 기준으로 따라온다
 let R=null,P=null,lastDigits="",lastSide=null;
 
 const IC={
@@ -596,8 +597,13 @@ function render(fast){
   }
   $("err").hidden=true;
   if(S.headAuto&&P.head)S.head=P.head;
-  /* 사양·머리 형상이 바뀌어 볼트가 짧아지면 물림도 따라 줄어야 한다 */
-  if(S.Le>0)S.Le=clampLe(S.Le);
+  /* 볼트 길이 우선 — 길이가 바뀌면 판재(체결 두께)는 그대로 두고 물림이 따라온다.
+     길이 슬라이더·사양 직접 편집·머리 형상 변경이 전부 여기로 모인다. */
+  if(P.len!=null&&S.Le>0){
+    const a=P.len-headHOf();
+    if(S.grip>a)S.grip=Math.max(0,a);
+    S.Le=Math.max(0,Math.round((a-S.grip)*100)/100);
+  }
 
   R=compute({d:P.d,pitch:P.pitch,cls:S.cls,head:S.head,mat:S.mat,k:S.k,washer:S.washer,lock:S.lock,
              preload:S.preload,Le:S.Le,loadType:S.loadType,load:S.load,
@@ -898,7 +904,8 @@ function drawSection(){
     g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?"#D92D20":"#5E7290"}" stroke-width="1.6"/>`);
     /* 비나사부 치수 — 머리 밑에서 나사가 시작되는 지점까지.
        볼트보다 긴 값이 들어오면 치수가 무의미하므로 성립하지 않는다고 적는다. */
-    const uy=cy-bh-16, c2=over?"#D92D20":"#5E7290", impossible=R.Lu!=null&&R.ls>=R.Lu;
+    /* 좌면 압괴 경고가 cy-bh-6에 오므로 그보다 위로 띄운다 */
+    const uy=cy-bh-24, c2=over?"#D92D20":"#5E7290", impossible=R.Lu!=null&&R.ls>=R.Lu;
     g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(sx,uy-4)} L${N(sx,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
     g.push(`<line x1="${headR}" y1="${uy}" x2="${sx.toFixed(1)}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
     g.push(`<text x="${((headR+sx)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
@@ -942,12 +949,13 @@ function drawSection(){
   g.push(`<text x="${blkL+eng/2}" y="${dy+17}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${col}">Le ${f1(Le)} mm</text>`);
   if(idle)g.push(`<text x="${blkL+eng/2}" y="${dy+32}" text-anchor="middle" font-size="10" font-weight="600" fill="#8593A8">적합 기준값 · 아직 미설정</text>`);
   if(wOn)g.push(`<text x="${plateL-2}" y="${dy+17}" text-anchor="end" font-size="10" font-weight="600" fill="#5E7290">${WASHER[S.washer].label}</text>`);
-  /* 나사 길이 치수 — 물림 치수 바깥쪽에 한 줄 더 (제도 관례대로 전체 치수가 아래) */
+  /* 볼트 길이 치수 — 물림 치수 바깥쪽에 한 줄 더 (제도 관례대로 전체 치수가 아래).
+     "나사 길이"로 쓰면 바로 위 비나사부 치수와 나란해져 나사부 길이로 읽힌다. */
   if(R.len!=null){
     const ly=dy+(idle?46:30), lx1=headR, lx2=blkL+eng;
     g.push(`<path d="M${N(lx1,ly-4)} L${N(lx1,ly+4)} M${N(lx2,ly-4)} L${N(lx2,ly+4)}" stroke="#8593A8" stroke-width="1.3" stroke-linecap="round"/>`);
     g.push(`<line x1="${lx1}" y1="${ly}" x2="${lx2.toFixed(1)}" y2="${ly}" stroke="#8593A8" stroke-width="1.4" stroke-linecap="round"/>`);
-    g.push(`<text x="${((lx1+lx2)/2).toFixed(1)}" y="${ly+14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5E7290">나사 길이 ${R.len} mm${R.H.cone?" (머리 포함)":""}</text>`);
+    g.push(`<text x="${((lx1+lx2)/2).toFixed(1)}" y="${ly+14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#5E7290">볼트 길이 ${R.len} mm${R.H.cone?" (머리 포함)":""}</text>`);
   }
   g.push(`<text x="${W-4}" y="14" text-anchor="end" font-size="10.5" font-weight="600" fill="#8593A8">${MAT[S.mat].label} · τu ${Math.round(tauOf(S.mat))} MPa</text>`);
   $("draw").innerHTML=g.join("");
@@ -960,16 +968,18 @@ const leMax=()=>P&&!P.err?Math.max(P.d*3.2,8):16;
 
 /* ── 체결부 치수 ─────────────────────────────────────────
    L = 머리 + 체결 두께 + Le. 자유도가 2라 두 값만 제어하고 나머지는 유도한다.
-   Le는 항상 슬라이더로 잡고, 볼트 길이는 선택적으로 두 번째 슬라이더가 잡는다.
-   체결 두께는 언제나 나머지이며 표시만 한다. */
+   볼트 길이가 우선이다 — 길이를 바꾸면 체결 두께(판재)는 그대로 두고 물림이 따라온다.
+   Le 슬라이더는 반대로 길이를 두고 체결 두께를 바꾼다. */
 const headHOf =()=>(P&&!P.err&&HEAD[S.head].cone)?cskHead(P.d):0;
 const lenOn   =()=>S.lenSlider&&!!P&&!P.err;
 const snapLen =v=>BOLT_LEN.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
+/* 머리 밑에서 쓸 수 있는 길이 = 체결 두께 + 물림 */
+const availLen=()=>(P&&!P.err&&P.len!=null)?P.len-headHOf():null;
 /* 볼트 길이 슬라이더 상한 — 호칭경 기준으로 잡고 표준 길이에 맞춘다 */
 const lenMax  =()=>{const t=Math.max(25,8*(P&&!P.err?P.d:5));
                     return BOLT_LEN.find(v=>v>=t)||BOLT_LEN[BOLT_LEN.length-1];};
-/* 체결 두께가 음수가 되지 않는 최소 길이 — 슬라이더 눈금으로도 쓴다 */
-const lenMin  =()=>headHOf()+Math.max(0,S.Le);
+/* 판재는 최소한 관통해야 하므로 이 아래로는 못 줄인다 — 슬라이더 눈금으로도 쓴다 */
+const lenMin  =()=>headHOf()+Math.max(0,S.grip);
 /* 사양 문자열을 다시 쓰되 비표준 피치와 머리 표기는 보존한다 */
 function specWithLen(len){
   const h=S.head!=="std"?" "+HEAD[S.head].label.replace(" CS",""):"";
@@ -977,7 +987,7 @@ function specWithLen(len){
   return "M"+P.d+pit+h+"-"+len;
 }
 function setBoltLen(v){
-  /* 체결 두께 0 미만으로는 못 내려간다 — 그 아래 표준 길이는 후보에서 뺀다 */
+  /* 판재를 관통 못 하는 길이는 후보에서 뺀다 — 그 아래로 가면 체결 두께가 깎인다 */
   const floor=lenMin();
   const ok=BOLT_LEN.filter(x=>x>=floor);
   const L=ok.length?ok.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a):snapLen(v);
@@ -987,8 +997,15 @@ function setBoltLen(v){
 }
 /* Le 상한 — 볼트 밖으로 물릴 수는 없다 */
 function clampLe(v){
-  const cap=(P&&!P.err&&P.len!=null)?P.len-headHOf():Infinity;
-  return Math.max(0,Math.min(v,cap));
+  const a=availLen();
+  return Math.max(0,Math.min(v,a==null?Infinity:a));
+}
+/* Le 슬라이더 전용 — 길이는 그대로 두고 체결 두께가 차이를 흡수한다.
+   이렇게 갱신해 둬야 render의 "길이 우선" 유도와 어긋나지 않는다. */
+function setLe(v){
+  S.Le=clampLe(v);
+  const a=availLen();
+  if(a!=null)S.grip=Math.max(0,Math.round((a-S.Le)*100)/100);
 }
 function updateSlider(){
   if(!R)return;
@@ -1039,7 +1056,7 @@ function updateSlider(){
     return Math.max(0,Math.min(1,(x-r.left)/r.width));};
   const set=(x,haptic)=>{
     const wasOk=R&&R.lvl==="ok";
-    S.Le=Math.max(.1,clampLe(Math.round(frac(x)*leMax()*10)/10));
+    setLe(Math.max(.1,Math.round(frac(x)*leMax()*10)/10));
     render(true);
     const nowOk=R&&R.lvl==="ok";
     if(haptic&&lastSide!==null&&nowOk!==wasOk){
@@ -1073,8 +1090,8 @@ function updateSlider(){
   window.addEventListener("pointerup",end); window.addEventListener("pointercancel",end);
   t.addEventListener("keydown",e=>{
     const st=P&&!P.err?Math.max(.1,Math.round(P.d)/10):.5;
-    if(e.key==="ArrowRight"||e.key==="ArrowUp"){S.Le=clampLe(Math.round((S.Le+st)*10)/10);render();e.preventDefault();}
-    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){S.Le=Math.max(0,Math.round((S.Le-st)*10)/10);render();e.preventDefault();}
+    if(e.key==="ArrowRight"||e.key==="ArrowUp"){setLe(Math.round((S.Le+st)*10)/10);render();e.preventDefault();}
+    if(e.key==="ArrowLeft"||e.key==="ArrowDown"){setLe(Math.max(0,Math.round((S.Le-st)*10)/10));render();e.preventDefault();}
     if(e.key==="Home"){S.Le=0;render();e.preventDefault();}
   });
 })();
