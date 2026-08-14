@@ -1025,23 +1025,24 @@ function drawSection(){
      비나사부는 값이 바뀌어도 그림이 움직이지 않는다. 박스·점선·치수선은 전부 고정
      위치이고 숫자만 바뀐다. 값에 비례해 도형을 늘렸다 줄이면 정작 봐야 할 물림
      깊이가 묻히고, 입력할 때마다 화면이 요동친다. 실제 치수 검토는 검토 항목이 한다. */
-  const gw=blkL-plateL;
+  const pw=(blkL-plateL)/2, pR=plateL+pw;      // 나사산 없는 가공물 박스 — 폭 고정
   /* 나사산 있는 가공물 (탭 모재) */
   g.push(`<rect x="${blkL}" y="${cy-bh}" width="${blkR-blkL}" height="${bh*2}" rx="8" fill="#E9EEF4"/>`);
   g.push(`<rect x="${blkL}" y="${cy-rMaj-2}" width="${eng+14}" height="${rMaj*2+4}" rx="3" fill="#F8FAFB"/>`);
   /* 나사산 없는 가공물 (클램프 판) */
-  g.push(`<rect x="${plateL}" y="${cy-bh}" width="${gw}" height="${bh*2}" rx="6" fill="#DFE6EF"/>`);
-  g.push(`<rect x="${plateL}" y="${cy-rMaj-2.5}" width="${gw}" height="${rMaj*2+5}" fill="#F8FAFB"/>`);
+  g.push(`<rect x="${plateL}" y="${cy-bh}" width="${pw}" height="${bh*2}" rx="6" fill="#DFE6EF"/>`);
+  g.push(`<rect x="${plateL}" y="${cy-rMaj-2.5}" width="${pw}" height="${rMaj*2+5}" fill="#F8FAFB"/>`);
   /* 볼트 몸통 */
   g.push(`<rect x="${headR}" y="${cy-rMaj}" width="${blkL-headR+eng}" height="${rMaj*2}" rx="2.5" fill="#BCCDE6"/>`);
   if(R.shankOn){
-    /* 비나사부 — 고정 위치 치수선에 숫자만 얹는다. 간섭이면 색과 꼬리말만 바뀐다. */
+    /* 비나사부 — 박스 폭에 맞춘 고정 치수선에 숫자만 얹는다.
+       간섭이면 색과 꼬리말만 바뀌고 도형은 그대로다. */
     const impossible=R.Lu!=null&&R.ls>=R.Lu, over=(R.ls+2*R.p)>R.Lk;
     const c2=(over||impossible)?DC.ng:DC.dim;
     const uy=cy-bh-24;                           // 좌면 압괴 경고(cy-bh-6)보다 위
-    g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(blkL,uy-4)} L${N(blkL,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
-    g.push(`<line x1="${headR}" y1="${uy}" x2="${blkL}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
-    g.push(`<text x="${((headR+blkL)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
+    g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(pR,uy-4)} L${N(pR,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${headR}" y1="${uy}" x2="${pR}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
+    g.push(`<text x="${((headR+pR)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
       +`비나사부 ${f1(R.ls)}${impossible?" — 길이 초과":over?" — 샹크 간섭":""}</text>`);
   }
   /* 와셔 */
