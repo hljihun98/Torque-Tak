@@ -1021,19 +1021,27 @@ function drawSection(){
   const col=idle?DC.ink3:R.lvl==="bad"?DC.ng:R.lvl==="warn"?DC.warn:DC.ok;
   const g=[]; const N=(x,y)=>x.toFixed(1)+","+y.toFixed(1);
 
-  /* 탭 모재 */
+  /* ── 부재 두 개 ────────────────────────────────────────
+     비나사부를 넣으면 왼쪽은 "나사산 없는 가공물"로 따로 세우고 그 폭을 비나사부에
+     맞춘다. 박스 오른쪽 끝이 곧 나사가 시작되는 지점이고, 거기에 점선을 찍는다.
+     비나사부를 안 넣었으면 나눌 근거가 없으므로 예전처럼 그립 전체를 한 부재로 둔다. */
+  const gw=blkL-plateL;
+  const frE=R.shankOn?(R.ls+2*R.p)/R.Lk:0, over=frE>1;
+  const inW=R.shankOn?gw*Math.min(1,R.ls/R.Lk):0;   // 그립 안에서 비나사부가 차지하는 폭
+  const sx=R.shankOn?plateL+inW:blkL;               // 비나사부 끝 = 나사 시작 = 박스 오른쪽 끝
+  /* 박스 끝·점선·치수 끝이 항상 같은 x여야 하므로 폭에 하한을 두지 않는다.
+     대신 얇아지면 모서리 반경을 줄여 찌그러져 보이지 않게 한다. */
+  const pw=sx-plateL, prx=Math.min(6,pw/2);
+
+  /* 나사산 있는 가공물 (탭 모재) */
   g.push(`<rect x="${blkL}" y="${cy-bh}" width="${blkR-blkL}" height="${bh*2}" rx="8" fill="#E9EEF4"/>`);
   g.push(`<rect x="${blkL}" y="${cy-rMaj-2}" width="${eng+14}" height="${rMaj*2+4}" rx="3" fill="#F8FAFB"/>`);
-  /* 체결 부재 (클램프 판) */
-  g.push(`<rect x="${plateL}" y="${cy-bh}" width="${blkL-plateL}" height="${bh*2}" rx="6" fill="#DFE6EF"/>`);
-  g.push(`<rect x="${plateL}" y="${cy-rMaj-2.5}" width="${blkL-plateL}" height="${rMaj*2+5}" fill="#F8FAFB"/>`);
+  /* 나사산 없는 가공물 — 톤을 한 단계 낮춰 탭 모재와 다른 부재로 읽히게 한다 */
+  g.push(`<rect x="${plateL}" y="${cy-bh}" width="${pw.toFixed(1)}" height="${bh*2}" rx="${prx.toFixed(1)}" fill="#D3DDEB"/>`);
+  g.push(`<rect x="${plateL}" y="${cy-rMaj-2.5}" width="${pw.toFixed(1)}" height="${rMaj*2+5}" fill="#F8FAFB"/>`);
   /* 볼트 몸통 */
   g.push(`<rect x="${headR}" y="${cy-rMaj}" width="${blkL-headR+eng}" height="${rMaj*2}" rx="2.5" fill="#BCCDE6"/>`);
-  /* 비나사부 — 그립 폭은 고정이고, 그 안에서 샹크가 차지하는 비율을 보여준다.
-     비율이 1을 넘으면 샹크가 탭 면을 파고드는 상태(런아웃)다. */
   if(R.shankOn){
-    const gw=blkL-plateL, frE=(R.ls+2*R.p)/R.Lk, over=frE>1;
-    const inW=gw*Math.min(1,R.ls/R.Lk);          // 실제 비나사부
     const sh=rMaj/2, sy0=cy-sh;                  // 몸통 두께의 절반으로 얇게 표시
     g.push(`<rect x="${plateL}" y="${sy0.toFixed(1)}" width="${inW.toFixed(1)}" height="${(sh*2).toFixed(1)}" fill="#8FA6C4"/>`);
     if(over){
@@ -1042,9 +1050,11 @@ function drawSection(){
       /* 위는 물림 산수·좌면 압괴 라벨이, 아래 dy부터는 치수선이 쓴다. 그 사이 왼쪽이 빈다. */
       g.push(`<text x="${plateL}" y="${(cy+bh+11).toFixed(1)}" font-size="9.5" font-weight="700" fill="${DC.ng}">샹크 간섭</text>`);
     }
-    const sx=plateL+inW;
-    g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-rMaj-4}" x2="${sx.toFixed(1)}" y2="${cy+rMaj+4}" stroke="${over?DC.ng:DC.dim}" stroke-width="1.6"/>`);
-    /* 비나사부 치수 — 머리 밑에서 나사가 시작되는 지점까지.
+    /* 나사가 시작되는 경계 — 부재 박스 끝과 같은 자리에, 박스 높이를 가로질러 긋는다.
+       볼트 몸통 주변만 짧게 그으면 어느 부재가 거기서 끝나는지 읽히지 않는다. */
+    g.push(`<line x1="${sx.toFixed(1)}" y1="${cy-bh-3}" x2="${sx.toFixed(1)}" y2="${cy+bh+3}" `
+      +`stroke="${over?DC.ng:DC.dim}" stroke-width="2.2" stroke-dasharray="5 4" stroke-linecap="round"/>`);
+    /* 비나사부 치수 — 머리 밑에서 그 점선까지. 박스 폭과 정확히 같다.
        볼트보다 긴 값이 들어오면 치수가 무의미하므로 성립하지 않는다고 적는다. */
     /* 좌면 압괴 경고가 cy-bh-6에 오므로 그보다 위로 띄운다 */
     const uy=cy-bh-24, c2=over?DC.ng:DC.dim, impossible=R.Lu!=null&&R.ls>=R.Lu;
@@ -1073,7 +1083,9 @@ function drawSection(){
   if(strip){
     g.push(`<line x1="${blkL}" y1="${cy-rMaj-5}" x2="${blkL+eng}" y2="${cy-rMaj-5}" stroke="${DC.ng}" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
     g.push(`<line x1="${blkL}" y1="${cy+rMaj+5}" x2="${blkL+eng}" y2="${cy+rMaj+5}" stroke="${DC.ng}" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
-  }else if(R.hasLe){
+  }else if(R.hasLe&&!R.shankOn){
+    /* 비나사부를 넣으면 점선은 나사가 시작되는 지점(sx)에 이미 찍혀 있다 —
+       탭 면에 하나 더 그리면 어느 쪽이 경계인지 알 수 없게 된다 */
     g.push(`<line x1="${blkL-6}" y1="${cy-rMaj-8}" x2="${blkL-6}" y2="${cy+rMaj+8}" stroke="${DC.ink3}" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>`);
   }
   /* 좌면 압괴 경고 */
@@ -1083,7 +1095,11 @@ function drawSection(){
     ,g.push(`<text x="${plateL+6}" y="${cy-bh-6}" font-size="9.5" font-weight="700" fill="${DC.ng}">좌면 압괴</text>`);
 
   const modeTxt=idle?"":strip?"뽑힘 지배":"볼트 목 파단";
-  g.push(`<text x="${blkL+eng/2}" y="${cy-rMaj-14}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${col}">${n}산 물림${modeTxt?" · "+modeTxt:""}</text>`);
+  /* 흰 테두리(halo) — 비나사부 경계 점선이 부재 높이를 가로지르므로 라벨과 겹칠 수 있다.
+     paint-order로 테두리를 먼저 깔면 어떤 선 위에서도 글자가 읽힌다. */
+  g.push(`<text x="${blkL+eng/2}" y="${cy-rMaj-14}" text-anchor="middle" font-size="10.5" font-weight="700" `
+    +`fill="${col}" stroke="#FFFFFF" stroke-width="3" paint-order="stroke" stroke-linejoin="round">`
+    +`${n}산 물림${modeTxt?" · "+modeTxt:""}</text>`);
 
   const dy=cy+bh+18;
   g.push(`<path d="M${N(blkL,dy-5)} L${N(blkL,dy+5)} M${N(blkL+eng,dy-5)} L${N(blkL+eng,dy+5)}" stroke="${col}" stroke-width="1.4" stroke-linecap="round"/>`);
