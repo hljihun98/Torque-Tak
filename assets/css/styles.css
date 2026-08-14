@@ -263,6 +263,12 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
   background:var(--surface-2);font-size:12px;font-weight:600;color:var(--brand);
   transition:background .14s var(--ease)}
 .le-opt:active{transform:scale(.985)}
+/* 비나사부에 맞춘 물림 제안 — 값을 덮어쓰기 전에 한 번 묻는 버튼 */
+.le-fit{display:block;width:100%;margin-top:8px;padding:9px 11px;border-radius:var(--r-sm);
+  background:var(--brand-tint);font-size:12px;font-weight:600;color:var(--brand);
+  text-align:left;line-height:1.45;transition:background .14s var(--ease)}
+.le-fit:active{transform:scale(.985)}
+.le-fit b{font-weight:800}
 .slv-desc{font-size:11.5px;font-weight:500;color:var(--ink-3);line-height:1.5;margin-top:7px}
 
 .acc{margin-top:12px;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}

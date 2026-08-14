@@ -766,6 +766,11 @@ function render(fast){
   /* 체결 두께는 언제나 유도값 — "길이 12인데 물림 6.2"의 나머지가 어디 갔는지 보여준다 */
   $("gripRow").hidden=R.Lk==null;
   if(R.Lk!=null)$("gripRead").textContent=f1(Math.max(0,R.Lk))+" mm";
+  /* 비나사부에 맞춘 물림 제안 — 이미 그 값이면 띄우지 않는다 */
+  const fit=leFit(), showFit=fit!=null&&Math.abs(fit-S.Le)>0.05;
+  $("leFit").hidden=!showFit;
+  if(showFit)$("leFit").innerHTML="판재 두께를 비나사부 "+f1(S.shank)
+    +" mm에 맞추면 물림은 <b>"+f1(fit)+" mm</b> — 눌러서 적용";
   $("leRead").textContent=R.hasLe?f1(R.Le)+" mm · Le/d "+f2(R.Le/R.d):"미설정";
   const cap=leCap(), atCap=isFinite(cap)&&R.hasLe&&S.Le>=cap-0.05;
   $("leNote").textContent =
@@ -1006,7 +1011,11 @@ function seg(id,indId,items,cur,lbl,cb){
 const DC={ink3:"#64738A", dim:"#5E7290", ng:"#C42317", warn:"#A25F00", ok:"#0A7A50"};
 function drawSection(){
   if(!R){$("draw").innerHTML="";return;}
-  const W=340,cy=88, plateL=52, blkL=118, blkR=334;   // 치수선 2줄이 더 붙어 아래로 내렸다
+  /* 가로 배치 — 폭은 전부 고정이다. 값에 비례해 늘리지 않는다.
+     나사부 박스를 왼쪽으로 넓혀 두 부재 사이 간격을 좁혔다(33 → 9px). */
+  const W=340,cy=88;
+  const plateL=52, pw=33, pR=plateL+pw;   // 나사산 없는 가공물 52~85
+  const blkL=94, blkR=334;                // 나사산 있는 가공물 94~334
   const rMaj=Math.max(8,Math.min(17,6+R.d*0.9));
   const cap=rMaj*1.45, bh=Math.max(30,rMaj+13);
   const wOn=S.washer!=="none";
@@ -1025,7 +1034,6 @@ function drawSection(){
      비나사부는 값이 바뀌어도 그림이 움직이지 않는다. 박스·점선·치수선은 전부 고정
      위치이고 숫자만 바뀐다. 값에 비례해 도형을 늘렸다 줄이면 정작 봐야 할 물림
      깊이가 묻히고, 입력할 때마다 화면이 요동친다. 실제 치수 검토는 검토 항목이 한다. */
-  const pw=(blkL-plateL)/2, pR=plateL+pw;      // 나사산 없는 가공물 박스 — 폭 고정
   /* 나사산 있는 가공물 (탭 모재) */
   g.push(`<rect x="${blkL}" y="${cy-bh}" width="${blkR-blkL}" height="${bh*2}" rx="8" fill="#E9EEF4"/>`);
   g.push(`<rect x="${blkL}" y="${cy-rMaj-2}" width="${eng+14}" height="${rMaj*2+4}" rx="3" fill="#F8FAFB"/>`);
@@ -1160,6 +1168,22 @@ function leCap(){
   return th>0?th:a;
 }
 function clampLe(v){ return Math.max(0,Math.min(v,leCap())); }
+/* 판재 두께를 비나사부에 맞췄을 때의 물림 — 제안값.
+   실무에서 부분나사 볼트를 고르는 순서가 "판재 두께 = 비나사부"이므로 값을 넣으면
+   물림이 따라오는 게 자연스럽다. 다만 자동으로 덮어쓰지는 않는다 — 비나사부와 판재
+   두께가 반드시 같아야 하는 것도 아니고(스페이서·카운터보어), 슬라이더로 맞춘 값이
+   예고 없이 사라지면 안 된다. 그래서 버튼으로 제안만 한다.
+   여유는 나사 런아웃 검토가 쓰는 10%를 그대로 써서, 제안을 눌렀는데 곧바로
+   "주의"로 떨어지는 일이 없게 한다 — slack ≥ 0.1·Lk 를 만족하는 최대 물림이다. */
+function leFit(){
+  const a=availLen();
+  if(a==null||!(S.shank>0)||!P||P.err)return null;
+  const need=(S.shank+2*(P.pitch||0))/0.9;      // 여유 10% 기준을 만족하는 최소 체결 두께
+  /* 내림한 뒤 슬라이더 한 칸(0.1mm)을 더 뺀다. 기준선에 딱 붙이면 부동소수 오차만으로도
+     여유가 기준 아래로 떨어져, 제안을 누른 즉시 "주의"가 뜬다. */
+  const v=Math.floor((a-need)*10)/10-0.1;
+  return v>0.05 ? Math.min(v,leCap()) : null;
+}
 /* Le 슬라이더 전용 — 길이는 그대로 두고 체결 두께가 차이를 흡수한다.
    이렇게 갱신해 둬야 render의 "길이 우선" 유도와 어긋나지 않는다. */
 function setLe(v){
@@ -1326,6 +1350,7 @@ function updateSlider(measure){
   });
 })();
 $("leReset").onclick=()=>{S.Le=0;render();};
+$("leFit").onclick=()=>{const v=leFit(); if(v!=null){setLe(v);render();}};
 
 /* ══════════════════════════════════════════════════════════
    계산 근거
