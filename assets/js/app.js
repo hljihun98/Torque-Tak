@@ -1011,11 +1011,8 @@ function seg(id,indId,items,cur,lbl,cb){
 const DC={ink3:"#64738A", dim:"#5E7290", ng:"#C42317", warn:"#A25F00", ok:"#0A7A50"};
 function drawSection(){
   if(!R){$("draw").innerHTML="";return;}
-  /* 가로 배치 — 폭은 전부 고정이다. 값에 비례해 늘리지 않는다.
-     나사부 박스를 왼쪽으로 넓혀 두 부재 사이 간격을 좁혔다(33 → 9px). */
   const W=340,cy=88;
-  const plateL=52, pw=33, pR=plateL+pw;   // 나사산 없는 가공물 52~85
-  const blkL=94, blkR=334;                // 나사산 있는 가공물 94~334
+  const plateL=52, blkR=334;
   const rMaj=Math.max(8,Math.min(17,6+R.d*0.9));
   const cap=rMaj*1.45, bh=Math.max(30,rMaj+13);
   const wOn=S.washer!=="none";
@@ -1024,9 +1021,26 @@ function drawSection(){
   const hw=R.H.cone?0:(S.head==="low"?9:16);
   const headR=plateL-wThk;                     // 머리 우측 끝
   const Le=R.LeShow;                           // 미설정이면 길이로 제한된 가정값
-  const scale=Math.min(12,(blkR-blkL-34)/Math.max(Le,4));
-  const eng=Math.max(16,Le*scale);
   const idle=!R.hasLe;
+
+  /* ── 가로 축척 ────────────────────────────────────────
+     볼트 길이가 같으면 그려지는 볼트 길이도 같아야 한다. 머리 밑 길이 Lu를 고정 폭
+     span에 담고, 그 안에서 물림과 체결 두께가 실제 비율대로 나눠 갖는다.
+     예전에는 물림만 따로 확대해 그렸다 — 같은 볼트인데 물림을 늘리면 볼트가 길어졌다.
+     사양에 길이가 없으면 나눌 기준이 없으므로 그때만 물림을 단독 배율로 그린다. */
+  const boltEnd=300, span=boltEnd-headR;
+  const prop=R.Lu!=null&&R.Lu>0;
+  let eng, blkL;
+  if(prop){
+    /* 물림이 그립을 다 먹어도 부재 박스가 남을 만큼은 남긴다 */
+    eng=Math.max(14,Math.min(span-18,span*Math.min(1,Le/R.Lu)));
+    blkL=boltEnd-eng;                          // 탭 면 — 그립이 줄면 머리 쪽으로 온다
+  }else{
+    blkL=94;
+    eng=Math.max(16,Math.min(blkR-blkL-34,Le*12));
+  }
+  /* 나사산 없는 가공물 박스 — 그립 안에 들어가는 고정 폭. 비나사부 값과는 무관하다. */
+  const pw=Math.max(8,Math.min(33,blkL-plateL-9)), pR=plateL+pw;
   const col=idle?DC.ink3:R.lvl==="bad"?DC.ng:R.lvl==="warn"?DC.warn:DC.ok;
   const g=[]; const N=(x,y)=>x.toFixed(1)+","+y.toFixed(1);
 
