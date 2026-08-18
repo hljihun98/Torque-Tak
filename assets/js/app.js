@@ -1024,12 +1024,16 @@ function drawSection(){
   const idle=!R.hasLe;
 
   /* ── 가로 축척 ────────────────────────────────────────
-     볼트 길이가 같으면 그려지는 볼트 길이도 같아야 한다. 머리 밑 길이 Lu를 고정 폭
-     span에 담고, 그 안에서 물림과 체결 두께가 실제 비율대로 나눠 갖는다.
-     예전에는 물림만 따로 확대해 그렸다 — 같은 볼트인데 물림을 늘리면 볼트가 길어졌다.
-     사양에 길이가 없으면 나눌 기준이 없으므로 그때만 물림을 단독 배율로 그린다. */
-  const boltEnd=300, span=boltEnd-headR;
+     두 가지를 동시에 지켜야 한다.
+     ① 볼트 길이가 같으면 그려지는 볼트 길이도 같다 — 물림을 드래그해도 볼트가 늘지 않는다.
+        그래서 몸통 폭은 물림이 아니라 머리 밑 길이 Lu만의 함수다.
+     ② 볼트 길이가 길어지면 머리에 붙은 채 오른쪽으로 길어진다.
+     길이를 화면 폭에 그대로 비례시키면 짧은 볼트가 너무 작아져 나사산이 안 보이므로,
+     기본 60px에 1mm당 3.2px를 더하는 식으로 압축했다(상한 248px). 볼트 안에서 물림과
+     체결 두께가 나뉘는 비율은 실제 치수 그대로다. */
   const prop=R.Lu!=null&&R.Lu>0;
+  const span=prop?Math.max(60,Math.min(248,60+R.Lu*3.2)):248;
+  const boltEnd=headR+span;                    // 볼트 끝 — 머리는 고정, 끝이 늘어난다
   let eng, blkL;
   if(prop){
     /* 물림이 그립을 다 먹어도 부재 박스가 남을 만큼은 남긴다 */
@@ -1039,8 +1043,9 @@ function drawSection(){
     blkL=94;
     eng=Math.max(16,Math.min(blkR-blkL-34,Le*12));
   }
-  /* 나사산 없는 가공물 박스 — 그립 안에 들어가는 고정 폭. 비나사부 값과는 무관하다. */
-  const pw=Math.max(8,Math.min(33,blkL-plateL-9)), pR=plateL+pw;
+  /* 나사산 없는 가공물 — 그립을 그대로 채워 탭 모재에 맞붙인다.
+     떼어 놓으면 볼트만 공중에 뜬 것처럼 보인다. 비나사부 값과는 무관하다. */
+  const pw=Math.max(8,blkL-plateL), pR=plateL+pw;
   const col=idle?DC.ink3:R.lvl==="bad"?DC.ng:R.lvl==="warn"?DC.warn:DC.ok;
   const g=[]; const N=(x,y)=>x.toFixed(1)+","+y.toFixed(1);
 
@@ -1057,14 +1062,17 @@ function drawSection(){
   /* 볼트 몸통 */
   g.push(`<rect x="${headR}" y="${cy-rMaj}" width="${blkL-headR+eng}" height="${rMaj*2}" rx="2.5" fill="#BCCDE6"/>`);
   if(R.shankOn){
-    /* 비나사부 — 박스 폭에 맞춘 고정 치수선에 숫자만 얹는다.
+    /* 비나사부 — 값에 비례해 늘리지 않는 짧은 고정 폭 콜아웃에 숫자만 얹는다.
+       부재 박스는 그립을 채우므로 거기에 맞추면 5mm짜리 치수가 그립 전체를 덮어
+       길이를 잘못 읽게 된다. 그래서 치수는 박스와 따로 둔다.
        간섭이면 색과 꼬리말만 바뀌고 도형은 그대로다. */
+    const dimR=plateL+Math.min(33,pw);
     const impossible=R.Lu!=null&&R.ls>=R.Lu, over=(R.ls+2*R.p)>R.Lk;
     const c2=(over||impossible)?DC.ng:DC.dim;
     const uy=cy-bh-24;                           // 좌면 압괴 경고(cy-bh-6)보다 위
-    g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(pR,uy-4)} L${N(pR,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
-    g.push(`<line x1="${headR}" y1="${uy}" x2="${pR}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
-    g.push(`<text x="${((headR+pR)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
+    g.push(`<path d="M${N(headR,uy-4)} L${N(headR,uy+4)} M${N(dimR,uy-4)} L${N(dimR,uy+4)}" stroke="${c2}" stroke-width="1.3" stroke-linecap="round"/>`);
+    g.push(`<line x1="${headR}" y1="${uy}" x2="${dimR}" y2="${uy}" stroke="${c2}" stroke-width="1.4" stroke-linecap="round"/>`);
+    g.push(`<text x="${((headR+dimR)/2).toFixed(1)}" y="${uy-6}" text-anchor="middle" font-size="10" font-weight="700" fill="${c2}">`
       +`비나사부 ${f1(R.ls)}${impossible?" — 길이 초과":over?" — 샹크 간섭":""}</text>`);
   }
   /* 와셔 */
