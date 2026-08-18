@@ -1051,7 +1051,7 @@ const DC={ink3:"#64738A", dim:"#5E7290", ng:"#C42317", warn:"#A25F00", ok:"#0A7A
 function drawSection(){
   if(!R){$("draw").innerHTML="";return;}
   const W=340,cy=88;
-  const plateL=52, blkR=334;
+  const plateL=52;
   const rMaj=Math.max(8,Math.min(17,6+R.d*0.9));
   const cap=rMaj*1.45, bh=Math.max(30,rMaj+13);
   const wOn=S.washer!=="none";
@@ -1063,28 +1063,21 @@ function drawSection(){
   const idle=!R.hasLe;
 
   /* ── 가로 축척 ────────────────────────────────────────
-     두 가지를 동시에 지켜야 한다.
-     ① 볼트 길이가 같으면 그려지는 볼트 길이도 같다 — 물림을 드래그해도 볼트가 늘지 않는다.
-        그래서 몸통 폭은 물림이 아니라 머리 밑 길이 Lu만의 함수다.
-     ② 볼트 길이가 길어지면 머리에 붙은 채 오른쪽으로 길어진다.
+     볼트 길이 = 체결 두께 + 물림이므로 "부재 박스 고정 + 물림 폭이 Le에 비례 +
+     볼트 길이 일정"은 동시에 성립하지 않는다. 셋 중 물림 폭을 포기한 배치다.
+     · 두 부재 박스는 고정 — 값을 바꿔도 자리를 옮기지 않는다.
+     · 물림 구간 폭은 Le와 무관하다. Le는 나사산 갯수와 숫자로 읽는다.
+       (나사산 간격이 좁아지면 깊게 물린 것 — 갯수 = Le/피치)
+     · 볼트 길이를 바꾸면 머리는 그대로 두고 나사부 박스와 볼트가 오른쪽으로 자란다.
      길이를 화면 폭에 그대로 비례시키면 짧은 볼트가 너무 작아져 나사산이 안 보이므로,
-     기본 60px에 1mm당 3.2px를 더하는 식으로 압축했다(상한 248px). 볼트 안에서 물림과
-     체결 두께가 나뉘는 비율은 실제 치수 그대로다. */
+     기본 60px에 1mm당 3.2px를 더하는 식으로 압축했다(상한 248px). */
+  const pw=33, pR=plateL+pw;                   // 나사산 없는 가공물 — 고정 폭
+  const blkL=pR;                               // 나사부 박스 왼쪽 — 맞붙여 고정
   const prop=R.Lu!=null&&R.Lu>0;
   const span=prop?Math.max(60,Math.min(248,60+R.Lu*3.2)):248;
-  const boltEnd=headR+span;                    // 볼트 끝 — 머리는 고정, 끝이 늘어난다
-  let eng, blkL;
-  if(prop){
-    /* 물림이 그립을 다 먹어도 부재 박스가 남을 만큼은 남긴다 */
-    eng=Math.max(14,Math.min(span-18,span*Math.min(1,Le/R.Lu)));
-    blkL=boltEnd-eng;                          // 탭 면 — 그립이 줄면 머리 쪽으로 온다
-  }else{
-    blkL=94;
-    eng=Math.max(16,Math.min(blkR-blkL-34,Le*12));
-  }
-  /* 나사산 없는 가공물 — 그립을 그대로 채워 탭 모재에 맞붙인다.
-     떼어 놓으면 볼트만 공중에 뜬 것처럼 보인다. 비나사부 값과는 무관하다. */
-  const pw=Math.max(8,blkL-plateL), pR=plateL+pw;
+  const boltEnd=headR+span;                    // 볼트 끝 — 머리 고정, 끝이 늘어난다
+  const eng=boltEnd-blkL;                      // 물림 구간 — 볼트 길이만의 함수
+  const blkR=Math.min(W-6,boltEnd+34);         // 나사부 박스 오른쪽 — 볼트 끝보다 조금 더
   const col=idle?DC.ink3:R.lvl==="bad"?DC.ng:R.lvl==="warn"?DC.warn:DC.ok;
   const g=[]; const N=(x,y)=>x.toFixed(1)+","+y.toFixed(1);
 
