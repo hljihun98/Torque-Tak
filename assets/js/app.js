@@ -28,23 +28,40 @@ const CLS={
   "4.8" :{su:400, sy:320, label:"4.8", desc:"연강"},
   "A2-50":{su:500,sy:210, label:"A2-50",desc:"SUS304 연질"}
 };
+/* 낮은 등급 → 높은 등급 순. 공급 관행 상한을 넘었는지 보는 데만 쓴다.
+   선택한 등급을 몰래 낮추지는 않는다 — 규격이 등급을 제한하지 않으므로 경고만 한다. */
 const CLS_RANK=["4.8","8.8","A2-50","A2-70","10.9","12.9"];
 const CLS_SEG=["12.9","10.9","8.8","A2-70"];
 
 /* ══════════════════════════════════════════════════════════
    머리 형상
-   f    : 토크/축력 제한계수 — 경험 근사값 (규격 실측 아님)
-   cap  : 규격상 최대 강도구분
+   fp   : 권장 축력(=토크) 제한계수 — 조일 수 있는 목표 축력을 깎는다
+   fu   : 머리 내력 계수 — 파단 하중을 깎는다 (나사부 대비 머리 쪽 한계)
+   rl   : 내력 감소 머리(reduced loadability) — 머리가 나사부보다 먼저 진다
    dhr  : 좌면 지름 배수 (d 대비). null = 원추 좌면(면압 미검토)
    dkr  : 하중 도입 원 지름 배수 — 면압은 못 구해도 부재 강성에는 필요하다
+
+   fp와 fu를 나눈 이유 — 두 한계가 서로 다른 데서 온다.
+   · fu 0.80 : ISO 10642 / ISO 14581 / JIS B 1194가 규정하는 머리 내력.
+     "The loadability in the head is assumed to be 80% of that in the thread for
+     all sizes and all property classes" (ISO 10642:2026 NOTE 2). 전 등급 공통이고
+     등급 상한이 아니다 — 세 규격 모두 12.9를 포함한다.
+   · fp 0.52 : 실제로 조일 수 있는 축력은 육각홀이 먼저 제한한다. 제조사 공표값 —
+     Unbrako 접시·버튼 목표 응력 420 MPa vs 표준 800 MPa = 0.525,
+     Bossard 감액 토크 ≈0.45, Hobson ≈0.63. 규격이 아니라 제조사 근거다.
+   저두(DIN 6912)는 위 규격군에 없고 공표 감액값도 못 찾아 기존 자체값 0.60을 유지한다.
    ══════════════════════════════════════════════════════════ */
 const HEAD={
-  std :{label:"표준",   full:"표준 (육각홀붙이 ISO 4762)",   f:1.00, cap:null,   dhr:null, iso:true,  note:"제한 없음"},
+  std :{label:"표준",   full:"표준 (육각홀붙이 ISO 4762)",   fp:1.00, fu:1.00, dhr:null, iso:true,  note:"제한 없음"},
   /* dkr 2.24 = ISO 10642 이론 머리 지름 dk (M3 6.72 · M5 11.2 · M8 17.92 = 2.24d) */
-  cs  :{label:"접시 CS", full:"접시 CS (ISO 10642)",         f:0.75, cap:"10.9", dhr:null, dkr:2.24, cone:true, note:"헤드 두께·소켓 깊이 제한 → 규격 최대 10.9"},
-  low :{label:"저두",    full:"저두 (Low head, DIN 6912)",   f:0.60, cap:"10.9", dhr:1.50, note:"실제 파괴는 육각홀 뭉개짐"},
-  btn :{label:"버튼",    full:"버튼 (ISO 7380)",             f:0.70, cap:"10.9", dhr:1.90, note:"돔 헤드 강도 제한"},
-  sems:{label:"SEMS",   full:"SEMS (와셔 일체)",            f:1.00, cap:"8.8",  dhr:2.10, note:"통상 4.8~8.8 또는 A2-70급"}
+  cs  :{label:"접시 CS", full:"접시 CS (ISO 10642)",         fp:0.52, fu:0.80, dhr:null, dkr:2.24, cone:true, rl:true,
+        note:"내력 감소 머리 — 머리 내력 80%(규격) · 조임 축력 52%(제조사)"},
+  low :{label:"저두",    full:"저두 (Low head, DIN 6912)",   fp:0.60, fu:0.60, dhr:1.50,
+        note:"실제 파괴는 육각홀 뭉개짐 · 계수는 자체 경험값"},
+  btn :{label:"버튼",    full:"버튼 (ISO 7380)",             fp:0.52, fu:0.80, dhr:1.90, rl:true,
+        note:"내력 감소 머리 — 접시와 같은 감액 (제조사 공표 기준)"},
+  sems:{label:"SEMS",   full:"SEMS (와셔 일체)",            fp:1.00, fu:1.00, dhr:2.10, sup:"8.8",
+        note:"통상 4.8~8.8 또는 A2-70급으로 공급"}
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -216,16 +233,18 @@ function compute(o,_probe){
   const p=o.pitch, d=o.d, H=HEAD[o.head], M=MAT[o.mat], K=KF[o.k].k;
   const washer=o.washer||"none";
 
-  let cls=o.cls, capped=false;
-  if(H.cap&&CLS_RANK.indexOf(cls)>CLS_RANK.indexOf(H.cap)){cls=H.cap;capped=true;}
-  const C=CLS[cls];
+  /* 선택한 강도구분을 그대로 쓴다. 예전에는 접시·저두·버튼을 10.9로 몰래 낮췄지만,
+     ISO 10642 · ISO 14581 · JIS B 1194 모두 12.9를 포함한다 — 규격은 등급을 제한하지
+     않고 하중을 깎는다. 등급이 공급 관행을 넘으면 검토 항목에서 경고한다. */
+  const cls=o.cls, C=CLS[cls];
 
   const As=stressArea(d,p), Fy=As*C.sy, Fu=As*C.su;
 
   /* 머리 형상 제한은 축력에 먼저 적용 — 토크와 축력의 정합성 확보 */
   const Fwant = o.preload/100*Fy;      // 제한 전 목표
-  const Fhead = Fwant*H.f;             // 머리 제한 반영
+  const Fhead = Fwant*H.fp;            // 조일 수 있는 축력 (육각홀 제한 반영)
   let Feff = Fhead;                    // 최종 적용 축력
+  const FuHead = Fu*H.fu;              // 머리 내력 한계 — 파단은 여기서 난다
 
   /* ── 체결부 기하 ─────────────────────────────────────────
      L = 머리 + 체결 두께 + Le. 머리 밑 길이 Lu를 물림과 판재가 나눠 쓴다.
@@ -243,7 +262,7 @@ function compute(o,_probe){
   const hasLe  = o.Le>0;
   const Ats    = hasLe?stripArea(d,o.Le):null;
   const Fstrip = hasLe?Ats*tauU:null;
-  const LeMin  = Fu*H.f/stripK;                // 볼트(머리 제한 포함)가 먼저 파단하는 물림
+  const LeMin  = FuHead/stripK;                // 볼트(머리 내력 포함)가 먼저 파단하는 물림
   const margin = hasLe?Fstrip/Fhead:null;      // 제한 전 기준 = 실제 여유
   /* 판정이 "적합"으로 바뀌는 최소 Le — Le에 의존하는 검토만 고려.
      기하보다 뒤에 두면 도달 가능성 판단에 쓸 수 없어 여기서 구한다. */
@@ -272,9 +291,9 @@ function compute(o,_probe){
   const LeShow = hasLe?o.Le:(LeAssume!=null?LeAssume:LeOk);
 
   const Trec   = K*Feff*d/1000;
-  const Fbreak = hasLe    ? Math.min(Fu*H.f,Fstrip)
-               : LeAssume!=null ? Math.min(Fu*H.f,stripK*LeAssume)
-               : Fu*H.f;
+  const Fbreak = hasLe    ? Math.min(FuHead,Fstrip)
+               : LeAssume!=null ? Math.min(FuHead,stripK*LeAssume)
+               : FuHead;
   const Tbreak = K*Fbreak*d/1000;
 
   /* 축력 산포 (토크 고정, K가 흔들림) */
@@ -445,6 +464,26 @@ function compute(o,_probe){
   else if(hasLe && MAT[o.mat].thin && o.Le<4)
     add("warn","모델 적용 범위","박판 모재에 얕은 물림 — 실물 검증 필요","주의");
 
+  /* 내력 감소 머리 — 규격이 등급을 막지 않으므로 낮추지 않고 알린다.
+     12.9는 경도가 높아 수소취성에 취약하고, 등급을 올려도 육각홀이 먼저 한계라
+     걸 수 있는 토크가 거의 안 늘어난다 (Bossard 감액표 M10: 08.8 35 / 010.9 38 N·m). */
+  if(H.rl){
+    /* 머리가 먼저 진다는 사실은 이 머리 형상을 고르면 항상 참이므로 별도 항목으로
+       매번 경고하지 않는다. 그러면 접시·버튼은 영원히 "적합"이 못 되고 판정이 무의미해진다.
+       상시 사실은 설명문과 모델 한계에 두고, 항목은 등급 선택만 판정한다. */
+    const headNote="머리 단면이 나사부보다 작아 파단은 머리에서 납니다 — 안전 관련 체결부에는 표준 머리를 쓰세요";
+    if(cls==="12.9")
+      add("warn","머리 내력 등급","12.9는 수소취성에 취약합니다(390 HV 초과). 등급을 올려도 육각홀 한계 때문에 "
+          +"조일 수 있는 토크는 거의 늘지 않습니다 — 10.9 권장. "+headNote,cls);
+    else
+      add("ok","머리 내력 등급","머리 내력 "+(H.fu*100).toFixed(0)+"%(규격) · 조임 축력 "
+          +(H.fp*100).toFixed(0)+"%(제조사) 반영. "+headNote,cls);
+  }
+  /* 공급 관행 등급 — 규격 제한이 아니라 시장에서 그 등급으로 나오지 않는다는 뜻 */
+  if(H.sup&&CLS_RANK.indexOf(cls)>CLS_RANK.indexOf(H.sup))
+    add("warn","공급 등급",H.label+"는 통상 "+H.sup+" 이하로 공급됩니다 — "+cls
+        +" 실물이 있는지 확인하세요",cls,"svc");
+
   if(util>1.0) add("bad","체결 중 조합응력","인장+비틀림 등가응력이 항복 초과 — 축력 설정을 낮추세요",(util*100).toFixed(0)+"%","str",FIX.util);
   else if(util>0.90) add("warn","체결 중 조합응력","VDI 기준 이용률 90% 초과 — 여유 없음",(util*100).toFixed(0)+"%");
   else add("ok","체결 중 조합응력","항복 이용률 적정",(util*100).toFixed(0)+"%");
@@ -535,7 +574,7 @@ function compute(o,_probe){
     txt=txt.replace(/ · $/,"");
   }
 
-  return{d,p,As,cls,capped,C,H,M,K,washer,Fy,Fu,Fwant,Fhead,Feff,Flo,Fhi,Fserv,Freq,
+  return{d,p,As,cls,C,H,M,K,washer,Fy,Fu,FuHead,Fwant,Fhead,Feff,Flo,Fhi,Fserv,Freq,
          Fstrip,Ats,LeMin,LeOk,LeReach,LeAssume,LeShow,reachLimited,reachCapped,
          okPossible,threads,margin,limited,hasLe,Le:o.Le,
          L,Tfric,Tadh,Trem,remRatio,
@@ -727,7 +766,7 @@ function render(fast){
     chip("M"+P.d+" × P"+P.pitch,"b");
     chip("As "+f2(R.As)+" mm²");
     chip(R.H.label);
-    chip(R.cls+(R.capped?" (규격 상한)":""),R.capped?"w":"");
+    chip(R.cls+(R.H.rl?" · 머리 감액":""),R.H.rl?"w":"");
     if(S.washer!=="none")chip("와셔 "+WASHER[S.washer].label);
     /* 비나사부를 넣으면 길이가 그립 계산에 실제로 쓰인다 */
     chip(P.len==null?"길이 미지정"
@@ -1391,8 +1430,9 @@ const SRC={
   vdi    :{t:2,label:"VDI 2230",        note:"볼트 체결 설계 지침"},
   nutf   :{t:3,label:"nut-factor 관행",  note:"Bickford · Bossard · Bolt Science 계열 K값 — 규격 아님"},
   roet   :{t:3,label:"Rötscher 원추",    note:"부재 강성 30° 압축 원추 모델 (Shigley) — VDI의 대체 원통식과 다름"},
-  iso10642:{t:1,label:"ISO 10642",      note:"접시머리 높이 — 호칭 길이에서 빼는 값"},
+  iso10642:{t:1,label:"ISO 10642",      note:"접시머리 높이 · 머리 내력 80% (NOTE 2) — 8.8·10.9·12.9 모두 포함"},
   tds    :{t:3,label:"Henkel TDS",      note:"LOCTITE 제품 데이터시트 (ISO 10964 시험)"},
+  mfr    :{t:3,label:"제조사 공표값",    note:"Unbrako 420/800 MPa · Bossard 감액 토크표 · Hobson 체결 토크표"},
   own    :{t:4,label:"자체 경험값",      note:"규격 근거 없음 — 실물 시험으로 재교정 필요"}
 };
 const SRC_TIER=[
@@ -1417,16 +1457,27 @@ function writeBasis(){
     +`<br><span class="mut">0.938194는 유효경 d₂와 골지름 d₃의 평균 계수 — 나사 기본 산형에서 유도됩니다</span>`
     +srcTag("iso898","iso261"));
   b.push(`<span class="st">${sn()} · 강도구분 ${R.cls}</span>σy ${R.C.sy} MPa · σu ${R.C.su} MPa`
-    +(R.capped?`<br><span class="wr">${R.H.label} 규격 상한으로 ${S.cls} → ${R.cls} 하향</span>`:"")
-    +srcTag(/^A2/.test(R.cls)?"iso3506":"iso898"));
+    +(R.H.rl
+      ? `<br>머리 내력 = 나사부의 <b>${(R.H.fu*100).toFixed(0)}%</b> → 파단 하중 ${f0(R.FuHead)} N`
+        +`<br><span class="mut">ISO 10642 NOTE 2 — "The loadability in the head is assumed to be 80% of `
+        +`that in the thread for all sizes and all property classes". 전 등급 공통이며 <b>등급 상한이 아닙니다</b>. `
+        +`ISO 10642 · ISO 14581 · JIS B 1194 모두 12.9를 포함하므로 선택한 등급을 낮추지 않습니다.</span>`
+      : ``)
+    +srcTag(/^A2/.test(R.cls)?"iso3506":"iso898",...(R.H.rl?["iso10642"]:[])));
   let s3=`<span class="st">${sn()} · 축력</span>목표 = ${S.preload}% × ${f2(R.As)} × ${R.C.sy} = ${f0(R.Fwant)} N`;
-  if(R.H.f<1) s3+=`<br>머리 형상 계수 ×${R.H.f.toFixed(2)} → ${f0(R.Fhead)} N <span class="mut">(경험 근사값)</span>`;
+  if(R.H.fp<1) s3+=`<br>머리 형상 조임 계수 ×${R.H.fp.toFixed(2)} → <b>${f0(R.Fhead)} N</b>`
+    +`<span class="mut"> — ${R.H.rl
+        ? `육각홀이 먼저 한계라 조일 수 있는 축력이 줄어듭니다. 제조사 공표값 기준 `
+          +`(Unbrako 목표 응력 420 / 표준 800 MPa = 0.53 · Bossard 감액 토크 ≈0.45 · Hobson ≈0.63)`
+        : `자체 경험값 — 규격 근거 없음`}</span>`;
   if(R.limited) s3+=`<br><span class="bad">뽑힘 안전율 ${STRIP_SF.toFixed(1)} 확보를 위해 <b>${f0(R.Feff)} N</b>으로 하향 제한</span>`;
   else s3+=`<br>적용 축력 <b>${f0(R.Feff)} N</b>`;
   s3+=`<br><span class="mut">마찰 산포 ±${K_SCAT*100}% → 실제 ${f0(R.Flo)} ~ ${f0(R.Fhi)} N. `
      +`이 폭은 VDI 2230의 조임계수 αA ≈ 1.8에 해당합니다.<br>`
-     +`목표 축력 비율·머리 형상 계수·뽑힘 안전율 ${STRIP_SF.toFixed(1)}은 규격이 아니라 자체 설정값입니다.</span>`
-     +srcTag("vdi","own");
+     +`목표 축력 비율과 뽑힘 안전율 ${STRIP_SF.toFixed(1)}은 규격이 아니라 자체 설정값입니다.`
+     +(R.H.rl?` 머리 조임 계수는 제조사 공표값, 머리 내력 ${(R.H.fu*100).toFixed(0)}%는 규격값입니다.`
+             :R.H.fp<1?` 머리 형상 계수도 자체 설정값입니다.`:``)+`</span>`
+     +srcTag("vdi",R.H.rl?"mfr":"own");
   b.push(s3);
   b.push(`<span class="st">${sn()} · 체결토크</span>T = ${R.K} × ${f0(R.Feff)} × ${R.d} = <b>${sig3(R.Trec)} N·m</b>`
     +`<br><span class="mut">K는 나사부 마찰·좌면 마찰·피치 성분을 하나로 묶은 계수입니다. `
@@ -1551,7 +1602,7 @@ function writeBasis(){
          :`(적합 기준 ${f1(R.LeOk)} mm까지 여유 있음)`)+`</span>`
       : ``)
     +`<br><span class="mut">뽑힘 모델을 "볼트가 먼저 파단"하는 조건으로 역산한 값이라 근거 등급도 뽑힘 항목과 같습니다. `
-    +(R.H.f<1?`볼트 파단 하중에 머리 형상 계수 ${R.H.f.toFixed(2)}를 적용했으므로 예상 파단 토크와 기준이 일치합니다.`
+    +(R.H.fu<1?`볼트 파단 하중에 머리 내력 계수 ${R.H.fu.toFixed(2)}를 적용했으므로 예상 파단 토크와 기준이 일치합니다.`
              :`볼트 파단 하중은 Fu 그대로입니다.`)+`</span>`
     +srcTag("iso261","own"));
 
@@ -1648,7 +1699,8 @@ function openSheet(mode){
     Object.entries(MAT).forEach(([k,v])=>opt(S.mat===k,v.label,v.desc+" · σu "+v.su+" / 한계면압 "+v.pG+" MPa",
       ()=>{S.mat=k;closeSheet();render();}));
   }else if(mode==="head"){
-    strip("접시·저두·버튼의 제한계수는 규격 실측값이 아니라 경험 근사값입니다.");
+    strip("접시·버튼은 머리 내력 80%가 규격값(ISO 10642), 조임 축력 52%는 제조사 공표값입니다. "
+         +"저두 0.60은 자체 경험값입니다. 규격은 강도구분을 제한하지 않으므로 선택한 등급을 낮추지 않습니다.");
     Object.entries(HEAD).forEach(([k,v])=>opt(S.head===k,v.full,v.note,
       ()=>{S.head=k;S.headAuto=false;closeSheet();render();}));
   }else if(mode==="k"){
