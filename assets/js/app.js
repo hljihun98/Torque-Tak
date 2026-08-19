@@ -716,24 +716,43 @@ function parse(raw){
 }
 
 /* ══════════════════════════════════════════════════════════
-   사내 시험 데이터
-   mat:null = 재질 미상. 시트 표1에는 행별 재질 정보가 없습니다.
+   사내 시험 데이터 — "실체결율에 따른 볼트강도별 파단토크 비교 시험" 시트 전체
+
+   T   : 실제 파단 토크 [N·m] · 5회 평균. null이면 파단 시험을 하지 않은 행이다
+   own : 사내 권장 체결 토크 [N·m] — 시트의 "산정된 체결력 × 0.90"
+         (시트 컬럼 머리말은 SS400 기준 / S45C 기준으로 갈라 적혀 있지만 두 열의 비가
+          전 행 정확히 0.90이라 재질 차이가 아니라 일괄 10% 감액으로 읽는다)
+   len : 볼트 길이 · tap : 탭 깊이 · Le : 체결 길이
+   mat:null = 재질 미상. 시트에 행별 재질 정보가 없습니다.
    ══════════════════════════════════════════════════════════ */
+const MEAS_N=5;                       // 파단 토크는 5회 평균값
 const MEAS=[
- {use:"Tension Block",        d:4, head:"std", Le:7.4, T:10.50, mat:null},
- {use:"Rear Cover LED",       d:4, head:"cs",  Le:5.0, T:6.59,  mat:null},
- {use:"Planet Reducer",       d:5, head:"std", Le:7.0, T:23.00, mat:null},
- {use:"Motor → Reducer",      d:5, head:"std", Le:5.0, T:21.20, mat:null},
- {use:"Reducer Pulley Plate", d:5, head:"std", Le:12.0,T:24.46, mat:null},
- {use:"Front/Rear Panel",     d:5, head:"cs",  Le:2.0, T:6.40,  mat:null},
- {use:"Plate → Squal Nut",    d:6, head:"std", Le:8.0, T:41.78, mat:null},
- {use:"Driving Module",       d:6, head:"cs",  Le:11.0,T:28.76, mat:null},
- {use:"Driving Module",       d:6, head:"cs",  Le:5.0, T:28.64, mat:null},
- {use:"Fork Bar (A-seg)",     d:8, head:"std", Le:9.6, T:92.30, mat:null},
- {use:"Caster",               d:8, head:"std", Le:7.0, T:84.90, mat:null},
- {use:"Worm Gear → Frame",    d:10,head:"low", Le:12.2,T:79.98, mat:null},
- {use:"전장박스 TAP",          d:3, head:"sems",Le:2.0, T:1.47,  mat:"SPCC", cls:"A2-70", k:"sus"},
- {use:"전장박스 TAP",          d:4, head:"sems",Le:2.0, T:2.04,  mat:"SPCC", cls:"A2-70", k:"sus"}
+ {use:"Wing Tip Plate (A-seg)",  d:4, head:"cs",  len:10, tap:8.1, Le:7.5, own:3.6,  T:null, mat:null},
+ {use:"Battery Bracket",         d:4, head:"std", len:12, tap:3,   Le:9.0, own:5.7,  T:null, mat:null},
+ {use:"Battery Bracket",         d:4, head:"std", len:10, tap:7,   Le:7.0, own:5.7,  T:null, mat:null},
+ {use:"Caster",                  d:4, head:"std", len:14, tap:10,  Le:10.0,own:5.7,  T:null, mat:null},
+ {use:"Tension Block",           d:4, head:"std", len:20, tap:10,  Le:7.4, own:5.7,  T:10.50,mat:null},
+ {use:"Rear Side Cover LED",     d:4, head:"cs",  len:10, tap:5,   Le:5.0, own:3.6,  T:6.59, mat:null},
+ {use:"E-Box (Front)",           d:5, head:"std", len:10, tap:8,   Le:8.0, own:12.4, T:null, mat:null},
+ {use:"E-Box (Front)",           d:5, head:"std", len:12, tap:12,  Le:12.0,own:12.4, T:null, mat:null},
+ {use:"E-Box (Front)",           d:5, head:"std", len:12, tap:10,  Le:9.5, own:12.4, T:null, mat:null},
+ {use:"Worm gear pully plate",   d:5, head:"std", len:12, tap:10,  Le:9.0, own:12.4, T:null, mat:null},
+ {use:"Planet Reducer",          d:5, head:"std", len:15, tap:7,   Le:7.0, own:12.4, T:23.00,mat:null},
+ {use:"Motor → Planet Reducer",  d:5, head:"std", len:20, tap:8,   Le:5.0, own:11.4, T:21.20,mat:null},
+ {use:"Planet Reducer Pulley",   d:5, head:"std", len:45, tap:16,  Le:12.0,own:13.2, T:24.46,mat:null},
+ {use:"Front/Rear Panel",        d:5, head:"cs",  len:6,  tap:2,   Le:2.0, own:3.1,  T:6.40, mat:null},
+ {use:"Front/Rear Panel",        d:5, head:"cs",  len:14, tap:10,  Le:9.5, own:6.2,  T:null, mat:null},
+ {use:"Worm gear pully plate",   d:5, head:"std", len:15, tap:12.5,Le:8.0, own:12.4, T:null, mat:null},
+ {use:"Plate → Squal Nut",       d:6, head:"std", len:30, tap:8,   Le:8.0, own:22.6, T:41.78,mat:null},
+ {use:"Front/Rear Driving Mod.", d:6, head:"cs",  len:20, tap:12,  Le:11.0,own:15.5, T:28.76,mat:null},
+ {use:"Front/Rear Driving Mod.", d:6, head:"cs",  len:20, tap:5,   Le:5.0, own:15.5, T:28.64,mat:null},
+ {use:"Worm Gear Top plate",     d:8, head:"low", len:12, tap:10,  Le:9.0, own:29.9, T:null, mat:null},
+ {use:"Worm Gear Top plate",     d:8, head:"low", len:15, tap:15,  Le:12.0,own:29.9, T:null, mat:null},
+ {use:"Fork Bar (A-seg)",        d:8, head:"std", len:16, tap:10,  Le:9.6, own:49.8, T:92.30,mat:null},
+ {use:"Caster",                  d:8, head:"std", len:20, tap:8,   Le:7.0, own:45.8, T:84.90,mat:null},
+ {use:"Worm Gear → Frame",       d:10,head:"low", len:20, tap:15,  Le:12.2,own:43.2, T:79.98,mat:null},
+ {use:"전장박스 TAP",             d:3, head:"sems",len:6,  tap:2,   Le:2.0, own:0.9,  T:1.47, mat:"SPCC", cls:"A2-70", k:"sus"},
+ {use:"전장박스 TAP",             d:4, head:"sems",len:10, tap:2,   Le:2.0, own:1.2,  T:2.04, mat:"SPCC", cls:"A2-70", k:"sus"}
 ];
 /* 시트에 기록되지 않은 항목의 대체값 — 예상값에 그대로 들어가므로 화면에 표기한다.
    강도구분은 파단 하중을 1.5배까지 흔들고, 체결 조건은 K를 통해 토크에 직접 곱해진다. */
@@ -741,23 +760,25 @@ const MEAS_ASSUME={cls:"12.9",k:"dry"};
 /* 예측값은 사용자 설정과 무관한 상수 — 최초 1회만 계산 */
 const MEAS_PRED = MEAS.map(m=>{
   const base={d:m.d,pitch:PITCH[m.d],cls:m.cls||MEAS_ASSUME.cls,head:m.head,k:m.k||MEAS_ASSUME.k,
-              washer:"none",preload:70,Le:m.Le,loadType:"none",load:0};
+              washer:"none",preload:70,Le:m.Le,len:m.len,loadType:"none",load:0};
   /* 가정으로 채운 항목 목록 — 행마다 무엇이 기록되지 않았는지 보여주기 위해 남긴다 */
   const gaps=[];
   if(!m.mat)gaps.push("재질");
   if(!m.cls)gaps.push("강도구분 "+MEAS_ASSUME.cls);
   if(!m.k)  gaps.push("체결조건 μ"+KF[MEAS_ASSUME.k].mu);
+  const dv=(pred)=>m.T!=null?(pred/m.T-1)*100:null;
   if(m.mat){
     const r=compute(Object.assign({},base,{mat:m.mat}));
-    return {known:true, gaps, T:r.Tbreak, dev:(r.Tbreak/m.T-1)*100};
+    return {known:true, gaps, T:r.Tbreak, rec:r.Trec, lim:r.limited, dev:dv(r.Tbreak)};
   }
-  const hi=compute(Object.assign({},base,{mat:"S45C"})).Tbreak;
-  const lo=compute(Object.assign({},base,{mat:"SS400"})).Tbreak;
+  const a=compute(Object.assign({},base,{mat:"S45C"}));
+  const b=compute(Object.assign({},base,{mat:"SS400"}));
+  const hi=a.Tbreak, lo=b.Tbreak;
   /* 물림이 넉넉하면 볼트가 먼저 파단하므로 모재를 몰라도 예상값이 같다.
      그런 행까지 "산출 불가"로 두면 쓸 수 있는 대조를 스스로 버리는 셈이다. */
   if(Math.abs(hi-lo) < hi*0.005)
-    return {known:true, boltGov:true, gaps, T:hi, dev:(hi/m.T-1)*100};
-  return {known:false, gaps, hi, lo};
+    return {known:true, boltGov:true, gaps, T:hi, rec:a.Trec, lim:a.limited, dev:dv(hi)};
+  return {known:false, gaps, hi, lo, rec:a.Trec, lim:a.limited};
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -1771,16 +1792,21 @@ function writeBasis(){
    ══════════════════════════════════════════════════════════ */
 function fillMeas(){
   if(!R)return;
-  const rows=MEAS.filter(m=>m.d===R.d), tb=$("measBody");
-  $("measCnt").textContent=rows.length?rows.length+"건":"—";
+  /* 시트에는 파단까지 간 행과 권장 토크만 산정한 행이 섞여 있다.
+     파단 대조 표에는 앞의 것만 올리고, 뒤의 것도 권장 토크 비교에는 쓴다. */
+  const same=MEAS.filter(m=>m.d===R.d);
+  const rows=same.filter(m=>m.T!=null), tb=$("measBody");
+  $("measCnt").textContent=same.length?rows.length+" / "+same.length+"건":"—";
   tb.innerHTML="";
   if(!rows.length){
-    tb.innerHTML=`<tr><td colspan="5" class="mut" style="text-align:center;padding:18px">M${R.d} 시험 데이터 없음</td></tr>`;
-    $("measSumm").textContent=""; $("measWarn").textContent=""; return;
+    tb.innerHTML=`<tr><td colspan="5" class="mut" style="text-align:center;padding:18px">`
+      +(same.length?`M${R.d} 시험 ${same.length}건 — 파단까지 간 행은 없습니다`
+                   :`M${R.d} 시험 데이터 없음`)+`</td></tr>`;
+    $("measSumm").textContent=""; $("measWarn").innerHTML=ownCompare(same); return;
   }
   const devs=[]; let unknown=0, assumed=0; const html=[];
   MEAS.forEach((m,i)=>{
-    if(m.d!==R.d)return;
+    if(m.d!==R.d||m.T==null)return;
     const q=MEAS_PRED[i];
     if(q.gaps.length)assumed++;
     /* 기록이 없어 가정으로 채운 항목을 행마다 그대로 적는다 — 재질만 경고하고
@@ -1817,8 +1843,36 @@ function fillMeas(){
       +`강도구분 가정은 볼트 지배 구간에서 파단 하중을 최대 1.5배까지, 체결 조건은 K를 통해 토크를 직접 흔듭니다. `
       +`행마다 무엇을 가정했는지는 위 표에 적었습니다.`);
   if(notes.length)
-    notes.push(`<b>행별 재질·강도구분·체결 조건 기록이 이 시험의 가장 시급한 보완 사항입니다.</b>`);
-  $("measWarn").innerHTML=notes.join(" ");
+    notes.push(`<b>행별 재질·강도구분·체결 조건, 그리고 파괴 모드 기록이 이 시험의 가장 시급한 보완 사항입니다.</b>`);
+  $("measWarn").innerHTML=ownCompare(same)+notes.join(" ");
+}
+
+/* 사내 권장 체결 토크와 앱 권장 토크를 나란히 둔다.
+   파단 대조는 "모델이 파괴를 맞히나"를 보지만, 실제로 현장이 쓰는 숫자와 맞는지는
+   이쪽이 답한다 — 마찰계수를 바꾼 뒤 이 줄이 검증 화면 역할을 한다. */
+function ownCompare(same){
+  if(!R)return "";
+  /* 머리 형상이 다르면 권장 토크가 절반까지 갈리므로 같은 머리끼리만 비교한다.
+     호칭경만 맞춰 묶으면 접시와 표준이 섞여 범위가 무의미해진다. */
+  const rows=same.filter(m=>m.own!=null&&m.head===S.head);
+  if(!rows.length){
+    const other=same.filter(m=>m.own!=null);
+    return other.length
+      ? `<p style="margin:0 0 10px" class="mut">M${R.d} 사내 시험은 ${[...new Set(other.map(m=>HEAD[m.head].label))].join("·")}만 있어 `
+        +`현재 머리 형상(${HEAD[S.head].label})과 직접 비교할 수 없습니다.</p>`
+      : "";
+  }
+  const o=rows.map(m=>m.own);
+  const lo=Math.min.apply(null,o), hi=Math.max.apply(null,o);
+  const mid=o.slice().sort((a,b)=>a-b)[Math.floor(o.length/2)];
+  const gap=(R.Trec/mid-1)*100, near=Math.abs(gap)<=15;
+  return `<p style="margin:0 0 10px"><b>사내 권장 체결 토크</b> — M${R.d} ${HEAD[S.head].label} ${o.length}건 `
+    +(lo===hi?`<b>${sig3(lo)} N·m</b>`:`<b>${sig3(lo)} ~ ${sig3(hi)} N·m</b> (중앙 ${sig3(mid)})`)
+    +` · 현재 설정의 앱 권장 <b>${sig3(R.Trec)} N·m</b> `
+    +`<span class="${near?"good":"wr"}">(${gap>0?"+":""}${gap.toFixed(0)}%)</span>`
+    +(R.limited?` <span class="wr">— 앱은 뽑힘 여유를 지키려 토크를 하향 제한한 상태입니다</span>`:``)+`. `
+    +`<span class="mut">사내 값은 시트 산정값의 90%이고 강도구분·모재가 적혀 있지 않습니다 — `
+    +`앱 설정(${R.cls} · ${MAT[S.mat].label} · ${KF[S.k].label})과 조건이 다르면 그만큼 벌어집니다.</span></p>`;
 }
 
 /* ══════════════════════════════════════════════════════════
