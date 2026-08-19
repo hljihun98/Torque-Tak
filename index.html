@@ -198,6 +198,7 @@
       <svg class="ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg></button>
     <div class="acc-b" id="limitBody"><div><div class="acc-in">
       <p class="note"><b>1. 토크로는 축력을 정밀 제어할 수 없습니다.</b> 표시 토크를 정확히 걸어도 마찰계수 산포 때문에 실제 축력은 <code>±30%</code> 범위로 흩어집니다. 안전이 걸린 체결부는 축력계·각도법·연신법으로 검증하십시오.</p>
+      <p class="note"><b>1-1. 마찰계수 등급 선택이 가장 큰 오차원입니다.</b> 토크는 마찰계수 <code>μ</code>에 거의 비례합니다. VDI 2230 표 A5의 <code>C등급</code>은 <code>μ 0.14~0.24</code> 범위라 <b>같은 등급 안에서도 토크가 60% 갈립니다</b>. 실제 표면 상태 — 탈지 후 건식인지, 방청유가 남아 있는지, 도금이 있는지 — 로 고르십시오. 건식 값을 윤활된 볼트에 쓰면 과체결됩니다. <b><code>K</code>와 <code>μ</code>는 같은 숫자가 아닙니다</b>: 피치 성분이 <code>K</code> 안에 들어 있어 <code>K 0.20</code>은 <code>μ 0.145</code>에 해당합니다.</p>
       <p class="note"><b>2. 경험 보정값을 씁니다.</b> 나사산 전단면적의 변형 보정계수 <code>0.65</code>와 저두 머리 계수 <code>0.60</code>은 규격 실측값이 아니라 <b>경험 근사값</b>입니다. 실물 파단 시험으로 재교정해야 합니다. 접시·버튼의 머리 내력 <code>0.80</code>은 ISO 10642 규정값이고, 조임 축력 <code>0.52</code>는 제조사 공표값(Unbrako·Bossard·Hobson)입니다.</p>
       <p class="note"><b>2-1. 접시·버튼은 머리에서 먼저 파단합니다.</b> 머리 단면이 나사부보다 작아, 나사부가 늘어나며 경고를 주기 전에 <b>갑자기</b> 파단할 수 있습니다. 안전 관련 체결부에는 표준 머리를 쓰십시오. 강도구분을 <code>12.9</code>로 올려도 육각홀이 먼저 한계라 걸 수 있는 토크는 거의 늘지 않습니다(Bossard 감액표 M10: 08.8 <code>35</code> / 010.9 <code>38</code> N·m). <code>12.9</code>는 경도가 높아 수소취성에도 취약합니다.</p>
       <p class="note"><b>3. 박판·소수 나사산에는 적용되지 않습니다.</b> 유효 나사산 3산 미만 또는 Le 2.5mm 미만에서는 파괴가 나사산 전단이 아니라 <b>판재 함몰·찢김</b>으로 일어납니다. 이 모델의 물리가 성립하지 않습니다. 버링탭·PEM너트·클린칭너트를 검토하십시오.</p>
@@ -236,7 +237,7 @@
   </div>
 
   <p class="foot">
-    T = K · F · d &nbsp;·&nbsp; A<sub>ts</sub> = 0.875 π d Le × 0.65 &nbsp;·&nbsp; σ<sub>eq</sub> = √(σ² + 3(0.5τ)²)<br>
+    M = F[0.16p + 0.58 d₂ μ<sub>G</sub> + (D<sub>Km</sub>/2) μ<sub>K</sub>] &nbsp;·&nbsp; A<sub>ts</sub> = 0.875 π d Le × 0.65 &nbsp;·&nbsp; σ<sub>eq</sub> = √(σ² + 3(0.5τ)²)<br>
     설계 기준값입니다. 안전 관련 체결부는 실물 검증 후 확정하십시오.<br>
     <b style="color:var(--ink-2);font-weight:700">Torque Tak!</b> · HL로보틱스
   </p>

@@ -136,13 +136,39 @@ function nutH(d){
   return NUT_H[k]*d/k;
 }
 
+/* ══════════════════════════════════════════════════════════
+   마찰 조건 — VDI 2230 Part 1 표 A5 마찰계수 등급
+
+   예전에는 나사부·좌면·피치를 하나로 뭉친 관행 계수 K를 조건마다 상수로 박아 뒀다.
+   문제는 K 숫자와 마찰계수 μ 숫자가 같지 않다는 것이다 — 피치 성분 0.16P가 K 안에
+   이미 들어 있어서, K 0.20은 μ 0.20이 아니라 <b>μ 0.145</b>다. VDI 기준으로 그건
+   가볍게 윤활된 B등급 표면이고, 탈지 후 건식으로 조립하는 가공면은 C등급(0.14~0.24)이다.
+   그래서 건식 조건만 μ 0.18로 올라가고(등가 K 0.24, 토크 +21%) 나머지 다섯 조건은
+   기존 K와 ±4% 안에서 그대로다 — 윤활 조건들은 애초에 맞게 잡혀 있었다.
+
+   mu   : 나사부·좌면 마찰계수. 둘을 구분할 근거가 없어 μG = μK로 둔다
+   cls  : VDI 2230 표 A5 마찰등급
+   band : 그 등급의 μ 범위 — 토크가 어느 폭으로 흔들리는지 보여주는 데 쓴다
+   ══════════════════════════════════════════════════════════ */
 const KF={
-  dry :{k:.20,label:"무윤활 강재",     desc:"K 0.20 · 기본"},
-  zinc:{k:.18,label:"아연 도금",       desc:"K 0.18"},
-  oil :{k:.15,label:"오일 윤활",       desc:"K 0.15"},
-  moly:{k:.12,label:"이황화몰리브덴",   desc:"K 0.12"},
-  lock:{k:.19,label:"나사 고정제",     desc:"K 0.19"},
-  sus :{k:.28,label:"스테인리스 무윤활",desc:"K 0.28 · 소착 주의"}
+  dry :{mu:.18,  cls:"C", band:[.14,.24], label:"건식 가공면",    desc:"μ 0.18 · VDI C등급 · 탈지 후 무윤활 조립 · 기본"},
+  zinc:{mu:.125, cls:"B", band:[.08,.16], label:"아연 도금",       desc:"μ 0.125 · VDI B등급"},
+  oil :{mu:.10,  cls:"B", band:[.08,.16], label:"오일·방청유",     desc:"μ 0.10 · VDI B등급 · 잔류 유분 포함"},
+  moly:{mu:.08,  cls:"A", band:[.04,.10], label:"이황화몰리브덴",   desc:"μ 0.08 · VDI A등급"},
+  lock:{mu:.14,  cls:"B", band:[.08,.16], label:"나사 고정제",     desc:"μ 0.14 · VDI B등급 · 습윤 상태가 윤활로 작용"},
+  sus :{mu:.22,  cls:"C", band:[.14,.24], label:"스테인리스 건식",  desc:"μ 0.22 · VDI C등급 상단 · 소착 주의"}
+};
+/* VDI 2230 체결토크식을 K로 되돌린 값.
+     M = F·[0.16·P + 0.58·d₂·μG + (D_Km/2)·μK]  →  K = M/(F·d)
+   d₂는 유효경, D_Km은 좌면 유효 마찰경 = (좌면 지름 + 구멍 지름)/2.
+   K가 호칭경·머리 형상·와셔에 따라 달라지는 게 물리적으로 맞다 — 상수 하나로 두면
+   좌면이 넓은 머리와 좁은 머리가 같은 토크를 받게 된다.
+   접시머리도 이 식으로 계산했을 때 표준머리 대비 0.58배가 나와 Bossard 감액표(≈0.56)와
+   계속 맞는다 — 원추 보정을 따로 넣지 않는 편이 제조사 공표값에 가깝다. */
+const HOLE_R = 1.1;                     // 구멍 지름 배수 — 좌면 면압 계산과 같은 값
+const kOf=(d,p,mu,dw)=>{
+  const d2=d-0.6495*p, DKm=(dw+HOLE_R*d)/2;
+  return (0.16*p + 0.58*d2*mu + DKm/2*mu)/d;
 };
 
 const WASHER={
@@ -151,7 +177,10 @@ const WASHER={
   wide:{label:"대형",   dhr:2.80, desc:"좌면 지름 약 2.8d — 연질재용"}
 };
 
-const PL_SEG=[65,70,75,90];
+/* 80%를 넣은 이유 — 목표 축력 %는 순수 인장 기준이라 비틀림을 더한 실제 항복 이용률과
+   다르다. 80%가 이용률 88%로 VDI 관행값 90%에 가장 가깝고, 기존 90% 옵션은 이용률
+   99%라 사실상 항복선이었다. */
+const PL_SEG=[65,70,75,80,90];
 const LOAD_SEG=[
   {v:"none",  label:"미입력"},
   {v:"axial", label:"축방향 인장"},
@@ -244,13 +273,23 @@ function bearingDia(d,head,washer){
    핵심 계산
    ══════════════════════════════════════════════════════════ */
 function compute(o,_probe){
-  const p=o.pitch, d=o.d, H=HEAD[o.head], M=MAT[o.mat], K=KF[o.k].k;
+  const p=o.pitch, d=o.d, H=HEAD[o.head], M=MAT[o.mat], F_=KF[o.k];
   /* 접시머리에 평와셔를 끼울 자리는 없다 — 선택돼 있어도 무시하고 그 사실을 알린다.
      좌면 지름·이완 손실·단면도가 전부 이 하나를 보게 묶어 둔다. */
   const washerSel=o.washer||"none";
   const washerIgnored = washerSel!=="none" && !!H.cone;
   const washer = washerIgnored ? "none" : washerSel;
   const washerOn = washer!=="none";
+
+  /* 좌면 지름을 토크보다 먼저 잡는다 — 마찰 토크의 좌면 성분이 여기에 비례한다.
+     Db는 면압을 "검토할 수 있는" 지름이라 접시는 null이지만, 마찰은 원추 좌면에서도
+     생기므로 이론 머리 지름(ISO 10642 2.24d)으로 받는다. */
+  const Db = bearingDia(d,o.head,washer);
+  const dLoad = Db || (H.dkr?H.dkr*d:1.65*d);
+  const mu = F_.mu;
+  const K  = kOf(d,p,mu,dLoad);
+  /* 마찰등급 폭이 만드는 토크 폭 — ±30% 산포와 별개로 "등급을 잘못 고르면" 생기는 오차다 */
+  const Klo = kOf(d,p,F_.band[0],dLoad), Khi = kOf(d,p,F_.band[1],dLoad);
 
   /* 선택한 강도구분을 그대로 쓴다. 예전에는 접시·저두·버튼을 10.9로 몰래 낮췄지만,
      ISO 10642 · ISO 14581 · JIS B 1194 모두 12.9를 포함한다 — 규격은 등급을 제한하지
@@ -333,10 +372,9 @@ function compute(o,_probe){
   const util  = sigEq/C.sy;
 
   /* 좌면 면압 */
-  const Db = bearingDia(d,o.head,washer);
   let pBear=null, pRatio=null;
   if(Db){
-    const Ab=PI/4*(Db*Db - Math.pow(1.1*d,2));
+    const Ab=PI/4*(Db*Db - Math.pow(HOLE_R*d,2));
     pBear = Fhi/Ab;                            // 상한 축력으로 검토
     pRatio= pBear/M.pG;
   }
@@ -357,10 +395,8 @@ function compute(o,_probe){
   const lg   = shankOn ? Math.max(0,Lbore-Math.min(ls,Lbore)) : null;
 
   let dS=null,dP=null,phi=null,Fz=null,embedCalc=null,embedCapped=false,turnDeg=null;
-  /* 하중 도입 원 지름 — 부재 강성 계산용. 평좌면은 실제 좌면 지름을 쓰고,
-     접시는 좌면 면압을 검토할 수 없어도 원추의 이론 머리 지름(ISO 10642 ≈ 2.24d)이
-     하중이 판재로 퍼지기 시작하는 원이므로 그 값을 쓴다. 근거 패널에 명시한다. */
-  const dLoad = Db || (H.dkr?H.dkr*d:null);
+  /* 하중 도입 원 지름은 위에서 잡은 dLoad를 그대로 쓴다 — 마찰 좌면과 하중이 판재로
+     퍼지기 시작하는 원이 같은 원이다. 접시는 ISO 10642 이론 머리 지름 2.24d. */
   if(shankOn){
     /* 볼트 컴플라이언스 — VDI 2230 Part 1 구간 분해 */
     const dSK = 0.5*d/(E_BOLT*AN);                      // 머리
@@ -629,7 +665,7 @@ function compute(o,_probe){
     txt=txt.replace(/ · $/,"");
   }
 
-  return{d,p,As,cls,C,H,M,K,washer,washerSel,washerOn,washerIgnored,Fy,Fu,FuHead,Fwant,Fhead,Feff,Flo,Fhi,Fserv,Freq,
+  return{d,p,As,cls,C,H,M,K,mu,Klo,Khi,kf:F_,washer,washerSel,washerOn,washerIgnored,Fy,Fu,FuHead,Fwant,Fhead,Feff,Flo,Fhi,Fserv,Freq,
          Fstrip,Ats,LeMin,LeOk,LeReach,LeAssume,LeShow,reachLimited,reachCapped,
          okPossible,threads,margin,limited,hasLe,Le:o.Le,
          L,Tfric,Tadh,Trem,remRatio,adhBase,
@@ -710,14 +746,18 @@ const MEAS_PRED = MEAS.map(m=>{
   const gaps=[];
   if(!m.mat)gaps.push("재질");
   if(!m.cls)gaps.push("강도구분 "+MEAS_ASSUME.cls);
-  if(!m.k)  gaps.push("체결조건 K"+KF[MEAS_ASSUME.k].k.toFixed(2));
+  if(!m.k)  gaps.push("체결조건 μ"+KF[MEAS_ASSUME.k].mu);
   if(m.mat){
     const r=compute(Object.assign({},base,{mat:m.mat}));
     return {known:true, gaps, T:r.Tbreak, dev:(r.Tbreak/m.T-1)*100};
   }
-  return {known:false, gaps,
-          hi:compute(Object.assign({},base,{mat:"S45C"})).Tbreak,
-          lo:compute(Object.assign({},base,{mat:"SS400"})).Tbreak};
+  const hi=compute(Object.assign({},base,{mat:"S45C"})).Tbreak;
+  const lo=compute(Object.assign({},base,{mat:"SS400"})).Tbreak;
+  /* 물림이 넉넉하면 볼트가 먼저 파단하므로 모재를 몰라도 예상값이 같다.
+     그런 행까지 "산출 불가"로 두면 쓸 수 있는 대조를 스스로 버리는 셈이다. */
+  if(Math.abs(hi-lo) < hi*0.005)
+    return {known:true, boltGov:true, gaps, T:hi, dev:(hi/m.T-1)*100};
+  return {known:false, gaps, hi, lo};
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -1503,8 +1543,8 @@ const SRC={
   iso4762:{t:1,label:"ISO 4762",        note:"육각홀붙이 머리 지름"},
   iso4032:{t:1,label:"ISO 4032",        note:"표준 너트 높이 — TDS 시험의 기준 물림"},
   jis    :{t:1,label:"JIS · KS 재료규격", note:"모재 인장강도 (G4051 · G3101 · G5501 등)"},
-  vdi    :{t:2,label:"VDI 2230",        note:"볼트 체결 설계 지침"},
-  nutf   :{t:3,label:"nut-factor 관행",  note:"Bickford · Bossard · Bolt Science 계열 K값 — 규격 아님"},
+  vdi    :{t:2,label:"VDI 2230",        note:"볼트 체결 설계 지침 · 표 A5 마찰계수 등급"},
+  nutf   :{t:3,label:"nut-factor 관행",  note:"등가 K 환산 표기 — T=K·F·d 자체는 규격 아님"},
   roet   :{t:3,label:"Rötscher 원추",    note:"부재 강성 30° 압축 원추 모델 (Shigley) — VDI의 대체 원통식과 다름"},
   iso10642:{t:1,label:"ISO 10642",      note:"접시머리 높이 · 머리 내력 80% (NOTE 2) — 8.8·10.9·12.9 모두 포함"},
   tds    :{t:3,label:"Henkel TDS",      note:"LOCTITE 제품 데이터시트 (ISO 10964 시험)"},
@@ -1559,11 +1599,26 @@ function writeBasis(){
              :R.H.fp<1?` 머리 형상 계수도 자체 설정값입니다.`:``)+`</span>`
      +srcTag("vdi",R.H.rl?"mfr":"own");
   b.push(s3);
-  b.push(`<span class="st">${sn()} · 체결토크</span>T = ${R.K} × ${f0(R.Feff)} × ${R.d} = <b>${sig3(R.Trec)} N·m</b>`
-    +`<br><span class="mut">K는 나사부 마찰·좌면 마찰·피치 성분을 하나로 묶은 계수입니다. `
-    +`VDI 2230은 이걸 M = F[0.16P + 0.58·d₂·μG + (D_Km/2)·μK]로 분리해 다루며, `
-    +`<b>T = K·F·d는 규격이 아니라 업계 관행식</b>입니다.</span>`
-    +srcTag("nutf"));
+  /* 마찰은 VDI 2230 세 항으로 푼다. 예전에는 K 하나만 보여줬는데, K 숫자와 μ 숫자가
+     다르다는 사실이 그 뒤에 가려져 있었다 — 화면에 μ를 직접 띄우는 것이 이 단계의 요점이다. */
+  const d2=R.d-0.6495*R.p, DKm=(R.dLoad+HOLE_R*R.d)/2;
+  b.push(`<span class="st">${sn()} · 체결토크</span>`
+    +`M = F × [0.16·P + 0.58·d₂·μ<sub>G</sub> + (D<sub>Km</sub>/2)·μ<sub>K</sub>]<br>`
+    +`= ${f0(R.Feff)} × [0.16×${R.p} + 0.58×${f2(d2)}×${R.mu} + (${f1(DKm)}/2)×${R.mu}]`
+    +` = <b>${sig3(R.Trec)} N·m</b><br>`
+    +`<span class="mut">마찰계수 <b>μ ${R.mu}</b> — VDI 2230 표 A5 <b>${R.kf.cls}등급</b> `
+    +`(${R.kf.band[0]}~${R.kf.band[1]}) · ${esc(R.kf.label)}<br>`
+    +`d₂ 유효경 ${f2(d2)} mm · D_Km 좌면 유효 마찰경 ${f1(DKm)} mm`
+    +`(좌면 ${f1(R.dLoad)}${R.H.cone?" — 접시는 ISO 10642 이론 머리 지름 2.24d":""} + 구멍 ${f1(HOLE_R*R.d)})</span>`
+    +`<br>등가 K = M/(F·d) = <b>${R.K.toFixed(3)}</b> `
+    +`<span class="mut">— 관행식 T = K·F·d로 환산한 값입니다. `
+    +`<b>K와 μ는 같은 숫자가 아닙니다</b>: 피치 성분 0.16P가 K 안에 이미 들어 있어 `
+    +`K 0.20은 μ 0.145에 해당합니다.</span>`
+    +`<br><span class="${R.kf.cls==="C"||R.kf.cls==="D"?"wr":"mut"}">`
+    +`이 등급 폭(μ ${R.kf.band[0]}~${R.kf.band[1]})만으로도 토크는 `
+    +`<b>${sig3(R.Klo*R.Feff*R.d/1000)} ~ ${sig3(R.Khi*R.Feff*R.d/1000)} N·m</b> 범위입니다 — `
+    +`표면 상태를 잘못 고르면 이만큼 어긋납니다.</span>`
+    +srcTag("vdi","nutf"));
   b.push(`<span class="st">${sn()} · 체결 중 조합응력</span>인장 σ = ${R.sigma.toFixed(0)} MPa · 비틀림 τ = ${R.tau.toFixed(0)} MPa<br>`
     +`σeq = √(σ² + 3(0.5τ)²) = <b>${R.sigEq.toFixed(0)} MPa</b> = 항복의 `
     +`<span class="${R.util>1?"bad":R.util>0.92?"wr":"good"}">${(R.util*100).toFixed(0)}%</span>`
@@ -1730,7 +1785,8 @@ function fillMeas(){
     if(q.gaps.length)assumed++;
     /* 기록이 없어 가정으로 채운 항목을 행마다 그대로 적는다 — 재질만 경고하고
        강도구분·체결조건을 조용히 12.9·K0.20으로 두면 편차를 잘못 읽게 된다 */
-    const head=`<td>${m.use}<br><span class="mut" style="font-size:11px">${HEAD[m.head].label} · ${m.mat||"재질 미상"}`
+    const head=`<td>${m.use}<br><span class="mut" style="font-size:11px">${HEAD[m.head].label} · `
+      +(m.mat||(q.boltGov?"재질 미상 — 볼트 지배라 무관":"재질 미상"))
       +(q.gaps.length?`<br>가정: ${q.gaps.join(" · ")}`:"")+`</span></td>`
       +`<td class="mut">${f1(m.Le)}</td><td><b>${m.T.toFixed(2)}</b></td>`;
     if(q.known){
@@ -1745,7 +1801,10 @@ function fillMeas(){
   tb.innerHTML=html.join("");
   if(devs.length){
     const avg=devs.reduce((a,b)=>a+b,0)/devs.length;
-    $("measSumm").innerHTML=`재질이 확인된 ${devs.length}건 평균 편차 <b>${avg>0?"+":""}${avg.toFixed(0)}%</b>. `
+    /* 부호를 보여주는 게 크기보다 중요하다 — 예상이 실측보다 낮으면 모델이 보수적이라
+       안전 쪽이고, 높으면 파단을 낙관하고 있다는 뜻이라 성격이 다르다. */
+    $("measSumm").innerHTML=`대조 가능한 ${devs.length}건 평균 편차 <b>${avg>0?"+":""}${avg.toFixed(0)}%</b> `
+      +`<span class="mut">(${avg<0?"예상이 실측보다 낮음 — 보수적":"예상이 실측보다 높음 — 파단을 낙관"})</span>. `
       +`예상 파단은 원리적으로 정밀도가 낮으므로 ±20~40%는 정상 범위입니다.`;
   }else $("measSumm").textContent="";
   const notes=[];
@@ -1754,7 +1813,7 @@ function fillMeas(){
       +`알루미늄이면 값이 절반 이하로 내려가 결론이 완전히 뒤집힙니다.`);
   if(assumed)
     notes.push(`<b>${assumed}건은 재질 외에도 강도구분·체결 조건이 기록되지 않아 `
-      +`${MEAS_ASSUME.cls} · K ${KF[MEAS_ASSUME.k].k.toFixed(2)}로 가정했습니다.</b> `
+      +`${MEAS_ASSUME.cls} · 마찰 ${KF[MEAS_ASSUME.k].label}(μ ${KF[MEAS_ASSUME.k].mu})로 가정했습니다.</b> `
       +`강도구분 가정은 볼트 지배 구간에서 파단 하중을 최대 1.5배까지, 체결 조건은 K를 통해 토크를 직접 흔듭니다. `
       +`행마다 무엇을 가정했는지는 위 표에 적었습니다.`);
   if(notes.length)
@@ -1792,6 +1851,8 @@ function openSheet(mode){
     Object.entries(HEAD).forEach(([k,v])=>opt(S.head===k,v.full,v.note,
       ()=>{S.head=k;S.headAuto=false;closeSheet();render();}));
   }else if(mode==="k"){
+    strip("마찰계수 μ는 VDI 2230 표 A5 등급값입니다. 등급 폭이 넓어 토크가 ±30%까지 갈리므로 "
+         +"실제 표면 상태로 고르세요 — 방청유가 남아 있는 볼트에 건식 값을 쓰면 과체결됩니다.");
     Object.entries(KF).forEach(([k,v])=>opt(S.k===k,v.label,v.desc,()=>{S.k=k;closeSheet();render();}));
   }else if(mode==="lock"){
     strip("수치는 Henkel TDS 공칭값(M10·강재·24h·ISO 10964)입니다. 실제 제품 TDS로 반드시 대조하세요.");
