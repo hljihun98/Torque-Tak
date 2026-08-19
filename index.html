@@ -87,7 +87,7 @@
       <div class="rem-range" id="remRange"></div>
       <div class="rem-split">
         <div><span class="k">체결 마찰분</span><span class="v" id="remFric">—</span></div>
-        <div><span class="k">고정제 이탈분</span><span class="v" id="remAdh">—</span></div>
+        <div><span class="k">고정제 저항분</span><span class="v" id="remAdh">—</span></div>
       </div>
       <div class="rem-bar"><i id="remBar"></i><u id="remMark"></u></div>
       <div class="rem-foot" id="remFoot"></div>
@@ -153,9 +153,9 @@
 
   <section class="card">
     <div class="seg-block">
-      <div class="lbl">작용 하중 (선택) — 넣으면 필요 축력까지 검토합니다</div>
+      <div class="lbl">작용 하중 (선택) — <b>볼트 1개</b>가 받는 하중을 넣으면 필요 축력까지 검토합니다</div>
       <div class="seg" id="segLoad"><div class="seg-ind" id="indLoad"></div></div>
-      <div class="load-in"><input id="load" type="number" inputmode="numeric" min="0" step="10" placeholder="0" aria-label="작용 하중"><span>N</span></div>
+      <div class="load-in"><input id="load" type="number" inputmode="numeric" min="0" step="10" placeholder="0" aria-label="볼트 1개가 받는 작용 하중"><span>N</span></div>
       <button class="load-clr" id="loadClr" hidden>하중 검토 해제</button>
     </div>
     <div style="height:14px"></div>
@@ -201,8 +201,11 @@
       <p class="note"><b>2. 경험 보정값을 씁니다.</b> 나사산 전단면적의 변형 보정계수 <code>0.65</code>와 저두 머리 계수 <code>0.60</code>은 규격 실측값이 아니라 <b>경험 근사값</b>입니다. 실물 파단 시험으로 재교정해야 합니다. 접시·버튼의 머리 내력 <code>0.80</code>은 ISO 10642 규정값이고, 조임 축력 <code>0.52</code>는 제조사 공표값(Unbrako·Bossard·Hobson)입니다.</p>
       <p class="note"><b>2-1. 접시·버튼은 머리에서 먼저 파단합니다.</b> 머리 단면이 나사부보다 작아, 나사부가 늘어나며 경고를 주기 전에 <b>갑자기</b> 파단할 수 있습니다. 안전 관련 체결부에는 표준 머리를 쓰십시오. 강도구분을 <code>12.9</code>로 올려도 육각홀이 먼저 한계라 걸 수 있는 토크는 거의 늘지 않습니다(Bossard 감액표 M10: 08.8 <code>35</code> / 010.9 <code>38</code> N·m). <code>12.9</code>는 경도가 높아 수소취성에도 취약합니다.</p>
       <p class="note"><b>3. 박판·소수 나사산에는 적용되지 않습니다.</b> 유효 나사산 3산 미만 또는 Le 2.5mm 미만에서는 파괴가 나사산 전단이 아니라 <b>판재 함몰·찢김</b>으로 일어납니다. 이 모델의 물리가 성립하지 않습니다. 버링탭·PEM너트·클린칭너트를 검토하십시오.</p>
+      <p class="note"><b>3-1. 수지(POM) 탭에는 적용되지 않습니다.</b> 수지는 정적 나사산 전단에 닿기 전에 <b>크리프·응력완화</b>로 축력이 시간에 따라 빠집니다. 이 모델에는 시간·온도 항이 없어 초기 축력만 다루고, 한계 면압 <code>60</code> MPa도 단기값이라 지속 하중에서는 훨씬 낮습니다. 금속 인서트를 넣고 인서트 재질로 계산하거나, 수지 전용 스크류의 제조사 권장 토크를 쓰십시오.</p>
       <p class="note"><b>4. 저두의 실제 파괴는 육각홀 뭉개짐입니다.</b> 얕은 소켓은 볼트가 끊어지기 전에 렌치 홀이 먼저 망가집니다. 이건 볼트 강도를 계수로 깎는 방식으로 표현되지 않습니다.</p>
-      <p class="note"><b>5. 접시머리 원추 좌면은 미검토입니다.</b> 알루미늄 박판에 접시머리를 쓰면 좌면이 가라앉는 모드가 지배할 수 있습니다.</p>
+      <p class="note"><b>5. 접시머리 원추 좌면은 미검토입니다.</b> 알루미늄 박판에 접시머리를 쓰면 좌면이 가라앉는 모드가 지배할 수 있습니다. 접시에 와셔를 골라도 카운터싱크에 앉는 형상이라 좌면이 되지 못하므로 계산에서 제외합니다.</p>
+      <p class="note"><b>5-1. 좌면 면압은 탭 모재 물성으로 계산합니다.</b> 실제로 좌면을 받는 것은 <b>클램프되는 판재</b>입니다. 강재 브래킷을 알루미늄 하우징에 조이면 없는 NG가 뜨고, 그 반대면 있는 NG를 놓칩니다. 두 재질이 다르면 판재 쪽 한계 면압으로 직접 확인하십시오.</p>
+      <p class="note"><b>5-2. 작용 하중은 볼트 1개·접합면 1개 기준입니다.</b> 횡하중은 마찰 전달 1면으로 봅니다. 조인트 전체 하중을 넣으면 볼트 개수만큼 결과가 틀립니다.</p>
       <p class="note"><b>6. 나사 치수는 기준 치수(공차 무반영)입니다.</b> 최악 공차 조합에서 전단면적이 10~15% 작아질 수 있습니다.</p>
       <p class="note"><b>7. 예상 파단 토크는 참고값입니다.</b> 항복 이후에는 토크-축력 관계가 무너지고 마찰이 급변하므로, 파괴까지 조인 토크를 이 모델로 예측할 수 없습니다. 실측과 20~40% 차이는 정상입니다.</p>
       <p class="note"><b>8. 진동 이완·열팽창차·피로는 미검토입니다.</b></p>
