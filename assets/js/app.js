@@ -6,8 +6,10 @@ const PI=Math.PI;
    ══════════════════════════════════════════════════════════ */
 const PITCH={1.6:.35,2:.4,2.5:.45,3:.5,4:.7,5:.8,6:1,8:1.25,10:1.5,12:1.75,14:2,16:2,18:2.5,20:2.5,22:2.5,24:3};
 const SIZES=[3,4,5,6,8,10,12];
-/* ISO 4762 육각홀붙이 머리 지름 (mm) */
-const DHEAD={3:5.5,4:7,5:8.5,6:10,8:13,10:16,12:18,14:21,16:24,20:30,24:36};
+/* ISO 4762 육각홀붙이 머리 지름 (mm) — 지원 범위(M1.6~M24) 전체를 채운다.
+   빠진 호칭경은 1.65d로 떨어졌는데 M18·M22에서 +10%, M2에서 −13% 어긋났다.
+   이 값은 좌면 면압과 마찰 토크의 좌면 성분(D_Km) 양쪽에 들어간다. */
+const DHEAD={1.6:3,2:3.8,2.5:4.5,3:5.5,4:7,5:8.5,6:10,8:13,10:16,12:18,14:21,16:24,18:27,20:30,22:33,24:36};
 /* ISO 10642 접시머리 높이 k (mm) — 접시는 호칭 길이가 머리를 포함한 전장이라
    머리 밑 유효 길이를 구하려면 이 값을 빼야 한다. M3~M12는 정확히 0.62d. */
 const CSK_K={3:1.86,4:2.48,5:3.1,6:3.72,8:4.96,10:6.2,12:7.44,14:8.4,16:8.8,20:10.16};
@@ -134,7 +136,7 @@ function lockSizeF(d){
   return P[i][1]*Math.pow(d/P[i][0],sl(i,i+1));
 }
 /* ISO 4032 표준 너트 높이 — TDS 시험의 기준 물림 길이 */
-const NUT_H={3:2.4,4:3.2,5:4.7,6:5.2,8:6.8,10:8.4,12:10.8,14:12.8,16:14.8,20:18};
+const NUT_H={1.6:1.3,2:1.6,2.5:2,3:2.4,4:3.2,5:4.7,6:5.2,8:6.8,10:8.4,12:10.8,14:12.8,16:14.8,18:15.8,20:18,22:19.4,24:21.5};
 function nutH(d){
   if(NUT_H[d])return NUT_H[d];
   const k=Object.keys(NUT_H).map(Number).sort((a,b)=>Math.abs(a-d)-Math.abs(b-d))[0];
@@ -965,9 +967,12 @@ function render(fast){
   $("leReset").hidden=!R.hasLe;
 
   renderChecks(); renderRemoval();
-  updateSlider(!fast); drawSection();
+  /* 트랙 폭은 캐시를 쓴다. clientWidth를 읽으면 레이아웃이 강제 재계산되고, 이 문서에서는
+     그 한 번이 전체 렌더의 60%였다(7.3ms 중 4.4ms). 폭이 바뀔 수 있는 때 —
+     리사이즈·슬라이더 펼침·최초 렌더 — 에만 measure=true로 부른다. */
+  updateSlider(false); drawSection();
   if(fast) return;                      // 드래그 중에는 여기서 종료
-  buildQuick(); buildSegs(); updateQuickNav(); ensureChipVisible();
+  buildQuick(); buildSegs(); ensureChipVisible();
   $("vMat").textContent=MAT[S.mat].label;
   $("vHead").textContent=HEAD[S.head].label;
   $("vK").textContent=KF[S.k].label;
@@ -987,7 +992,7 @@ function updateShankUI(){
   $("slvWrap").hidden=!on;
   if(!on)return;
   /* 숨은 동안은 폭이 0이라 인디케이터가 못 잡힌다 — 펼친 직후 다시 재보정 */
-  if(was)buildSegs();
+  if(was){segsStale(["segSlv"]);buildSegs();}
   const desc=SLV_SEG.find(o=>o.v===S.slevel);
   let note=desc?desc.desc:"";
   if(R){
@@ -1128,7 +1133,9 @@ function buildQuick(){
     b.onclick=()=>{S.head=h;S.headAuto=false;render();};
     q.appendChild(b);
   });
-  q.dataset.built="1"; buildQuick();
+  q.dataset.built="1";
+  buildQuick();          // 클래스 토글만 하는 경로로 다시 들어간다
+  updateQuickNav();      // 칩 폭이 확정된 직후 한 번만 — 이후로는 스크롤·리사이즈에서만 잰다
 }
 
 /* 가로 스크롤 상태 → 페이드·화살표 노출 제어 */
@@ -1139,8 +1146,20 @@ function updateQuickNav(){
   w.classList.toggle("can-l",slack>2 && q.scrollLeft>2);
   w.classList.toggle("can-r",slack>2 && q.scrollLeft<slack-2);
 }
-/* 선택된 칩이 잘려 있으면 보이는 위치로 (페이지 스크롤 건드리지 않음) */
+/* 선택된 칩이 잘려 있으면 보이는 위치로 (페이지 스크롤 건드리지 않음).
+   호칭경이 바뀔 때만 — 그대로면 offsetLeft를 읽지 않고, 사용자가 손으로 옮긴
+   스크롤 위치를 렌더마다 되돌리지도 않는다. */
+let lastChipD=null, chipRAF=null;
 function ensureChipVisible(){
+  const q=$("quick"); if(!q)return;
+  const el=q.querySelector(".qchip.on[data-d]"); if(!el)return;
+  if(el.dataset.d===lastChipD)return;
+  lastChipD=el.dataset.d;
+  /* 읽기를 프레임 뒤로 — 그 시점에는 브라우저가 레이아웃을 이미 끝내 놓아 공짜다 */
+  if(chipRAF)cancelAnimationFrame(chipRAF);
+  chipRAF=requestAnimationFrame(()=>{chipRAF=null;scrollChipIntoView();});
+}
+function scrollChipIntoView(){
   const q=$("quick"); if(!q)return;
   const el=q.querySelector(".qchip.on[data-d]"); if(!el)return;
   const l=el.offsetLeft, r=l+el.offsetWidth, pad=46;
@@ -1164,9 +1183,11 @@ function buildSegs(){
   seg("segLoad","indLoad",LOAD_SEG.map(o=>o.v),S.loadType,
       v=>LOAD_SEG.find(o=>o.v===v).label,
       v=>{S.loadType=v; if(v==="none"){S.load=0;$("load").value="";} render();});
-  seg("segSlv","indSlv",SLV_SEG.map(o=>o.v),S.slevel,
-      v=>SLV_SEG.find(o=>o.v===v).label,
-      v=>{S.slevel=v;render();});
+  /* 숨어 있으면 폭이 0이라 위치를 못 잡는다 — 펼칠 때 updateShankUI가 다시 부른다 */
+  if(!$("slvWrap").hidden)
+    seg("segSlv","indSlv",SLV_SEG.map(o=>o.v),S.slevel,
+        v=>SLV_SEG.find(o=>o.v===v).label,
+        v=>{S.slevel=v;render();});
 }
 function seg(id,indId,items,cur,lbl,cb){
   const el=$(id);
@@ -1180,12 +1201,25 @@ function seg(id,indId,items,cur,lbl,cb){
     el.dataset.built="1";
   }
   const btns=[...el.querySelectorAll("button")];
+  let idx=-1;
   btns.forEach((b,i)=>{
     const on=String(items[i])===String(cur);
+    if(on)idx=i;
     b.classList.toggle("on",on);
-    if(on){const ind=$(indId); ind.style.left=b.offsetLeft+"px"; ind.style.width=b.offsetWidth+"px";}
   });
+  if(idx<0)return;
+  /* 버튼 위치를 캐시한다. offsetLeft를 읽으면 직전 쓰기 때문에 레이아웃이 그 자리에서
+     다시 계산되고, 이 문서에서는 그 한 번이 8ms였다. .on은 색만 바꾸고 버튼은
+     flex:1 + border-box라 폭이 고정이므로 한 번 재두면 계속 쓸 수 있다.
+     폭이 바뀔 수 있는 때(리사이즈·펼침)에만 segsStale()로 버린다. */
+  let g=SEGGEO[id];
+  if(!g) g=SEGGEO[id]=btns.map(b=>[b.offsetLeft,b.offsetWidth]);
+  const ind=$(indId);
+  ind.style.left=g[idx][0]+"px"; ind.style.width=g[idx][1]+"px";
 }
+const SEGGEO={};
+/* 폭이 바뀌었을 수 있으니 캐시를 버린다 */
+function segsStale(ids){ (ids||Object.keys(SEGGEO)).forEach(id=>{delete SEGGEO[id];}); }
 
 /* ══════════════════════════════════════════════════════════
    단면도
@@ -1425,6 +1459,9 @@ function updateSlider(measure){
     $("lfill").style.width=(P.len!=null?lpx:0)+"px";
     $("ltickMin").style.left=lat(lenMin())+"px";
     lt.setAttribute("aria-valuenow",P.len!=null?P.len:0);
+    /* 하한은 판재를 관통하는 길이라 0이 아니다 — 0으로 두면 스크린리더가 실제로 갈 수
+       없는 범위를 읽어 준다 */
+    lt.setAttribute("aria-valuemin",f1(lenMin()));
     lt.setAttribute("aria-valuemax",lmax);
     lt.setAttribute("aria-valuetext",(P.len!=null?P.len+"mm":"미지정")
       +", 물림 "+f1(R.LeShow)+"mm"+(R.hasLe?"":" (가정)")
@@ -1764,7 +1801,10 @@ function writeBasis(){
       +`볼트 개수만큼 결과가 틀립니다 — 나눠서 넣으세요.</span><br>${need} = <b>${f0(R.Freq)} N</b><br>`
       +`이완 후 잔존 축력 = ${f0(R.Feff)} × (1 − ${(R.embedUse*100).toFixed(1)}%) = ${f0(R.Fserv)} N `
       +`<span class="${R.Fserv<R.Freq?"bad":"good"}">(${f2(R.Fserv/R.Freq)}배)</span>`
-      +(R.usePhi?`<br>외력 중 볼트 분담 F_SA = Φ × ${f0(S.load)} = <b>${f0(R.Fsa)} N</b> → `
+      /* F_SA·sigMax는 축방향 하중에서만 구한다 — 횡하중은 외력이 축방향이 아니라 Φ와 무관하다.
+         usePhi만 보고 열면 전단 + 해석수준 "하중 계수" 조합에서 null.toFixed로 죽는다.
+         검토 항목 쪽은 이미 sigMax!=null로 막고 있었어서 여기만 어긋나 있었다. */
+      +(R.usePhi&&R.sigMax!=null?`<br>외력 중 볼트 분담 F_SA = Φ × ${f0(S.load)} = <b>${f0(R.Fsa)} N</b> → `
         +`최대 응력 ${R.sigMax.toFixed(0)} MPa = 항복의 ${(R.sigMax/R.C.sy*100).toFixed(0)}%`:``)
       +`<br><span class="mut">`
       +(R.useEmbed?`이완 손실은 비나사부 기반 탄성 계산값입니다. `
@@ -1849,7 +1889,7 @@ function fillMeas(){
        안전 쪽이고, 높으면 파단을 낙관하고 있다는 뜻이라 성격이 다르다. */
     $("measSumm").innerHTML=`대조 가능한 ${devs.length}건 평균 편차 <b>${avg>0?"+":""}${avg.toFixed(0)}%</b> `
       +`<span class="mut">(${avg<0?"예상이 실측보다 낮음 — 보수적":"예상이 실측보다 높음 — 파단을 낙관"})</span>. `
-      +`예상 파단은 원리적으로 정밀도가 낮으므로 ±20~40%는 정상 범위입니다.`;
+      +`실측은 ${MEAS_N}회 평균입니다. 예상 파단은 원리적으로 정밀도가 낮으므로 ±20~40%는 정상 범위입니다.`;
   }else $("measSumm").textContent="";
   const notes=[];
   if(unknown)
@@ -2029,7 +2069,7 @@ $("lenTgl").onclick=()=>{
 
 const bar=$("bar");
 addEventListener("scroll",()=>bar.classList.toggle("stuck",scrollY>4),{passive:true});
-addEventListener("resize",()=>{updateSlider(true);buildSegs();updateQuickNav();});
+addEventListener("resize",()=>{segsStale();updateSlider(true);buildSegs();updateQuickNav();});
 /* 탭을 닫거나 백그라운드로 보낼 때는 디바운스를 기다리지 않고 바로 쓴다 */
 addEventListener("pagehide",saveState);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)saveState();});
@@ -2041,5 +2081,6 @@ document.addEventListener("visibilitychange",()=>{if(document.hidden)saveState()
   if(S.load>0) $("load").value=S.load;
   if(S.shank>0)$("shank").value=S.shank;
   render();
-  requestAnimationFrame(()=>{buildSegs();updateSlider(true);updateQuickNav();});
+  /* 최초 측정은 프레임 하나 뒤에 한 번 — 스타일이 다 앉은 뒤의 폭이어야 정확하다 */
+  requestAnimationFrame(()=>{segsStale();buildSegs();updateSlider(true);updateQuickNav();});
 })();
