@@ -1718,11 +1718,11 @@ function writeBasis(){
   const d2=R.d-0.6495*R.p, DKm=(R.dLoad+HOLE_R*R.d)/2;
   b.push(`<span class="st">${sn()} · 체결토크</span>`
     +`M = F × [0.16·P + 0.58·d₂·μ<sub>G</sub> + (D<sub>Km</sub>/2)·μ<sub>K</sub>]<br>`
-    +`= ${f0(R.Feff)} × [0.16×${R.p} + 0.58×${f2(d2)}×${R.mu} + (${f1(DKm)}/2)×${R.mu}]`
+    +`= ${f0(R.Feff)} × [0.16×${R.p} + 0.58×${f2(d2)}×${R.mu} + (${f2(DKm)}/2)×${R.mu}]`
     +` = <b>${sig3(R.Trec)} N·m</b><br>`
     +`<span class="mut">마찰계수 <b>μ ${R.mu}</b> — VDI 2230 표 A5 <b>${R.kf.cls}등급</b> `
     +`(${R.kf.band[0]}~${R.kf.band[1]}) · ${esc(R.kf.label)}<br>`
-    +`d₂ 유효경 ${f2(d2)} mm · D_Km 좌면 유효 마찰경 ${f1(DKm)} mm`
+    +`d₂ 유효경 ${f2(d2)} mm · D_Km 좌면 유효 마찰경 ${f2(DKm)} mm`
     +`(좌면 ${f1(R.dLoad)}${R.H.cone?" — 접시는 ISO 10642 이론 머리 지름 2.24d":""} + 구멍 ${f1(HOLE_R*R.d)})</span>`
     +`<br>등가 K = M/(F·d) = <b>${R.K.toFixed(3)}</b> `
     +`<span class="mut">— 관행식 T = K·F·d로 환산한 값입니다. `
@@ -1742,7 +1742,7 @@ function writeBasis(){
     +srcTag("vdi","iso261"));
   if(R.hasLe){
     b.push(`<span class="st">${sn()} · 나사산 뽑힘</span>모재 ${R.M.label} · τu = 0.6 × ${R.M.su} = ${Math.round(tauOf(S.mat))} MPa<br>`
-      +`Ats = 0.875 × π × ${R.d} × ${f1(R.Le)} × ${KNOCK} = ${f2(R.Ats)} mm²<br>`
+      +`Ats = 0.875 × π × ${R.d} × ${f2(R.Le)} × ${KNOCK} = ${f2(R.Ats)} mm²<br>`
       +`탭 내력 <b>${f0(R.Fstrip)} N</b> / 축력 ${f0(R.Fhead)} N = 여유 `
       +`<span class="${R.margin<STRIP_SF?"bad":"good"}">${f2(R.margin)}배</span>`
       +`<br><span class="mut">0.875는 60° 나사 기하에서 유도된 값(0.5 + 0.57735 × 0.649519 = 0.5 + 0.375)이고, `
@@ -1837,7 +1837,7 @@ function writeBasis(){
     b.push(`<span class="st">${sn()} · 작용 하중 대비</span>`
       +`<span class="mut">볼트 <b>1개</b>·접합면 <b>1개</b>가 받는 하중 기준입니다. 조인트 전체 하중을 넣으면 `
       +`볼트 개수만큼 결과가 틀립니다 — 나눠서 넣으세요.</span><br>${need} = <b>${f0(R.Freq)} N</b><br>`
-      +`이완 후 잔존 축력 = ${f0(R.Feff)} × (1 − ${(R.embedUse*100).toFixed(1)}%) = ${f0(R.Fserv)} N `
+      +`이완 후 잔존 축력 = ${f0(R.Feff)} × (1 − ${(R.embedUse*100).toFixed(2)}%) = ${f0(R.Fserv)} N `
       +`<span class="${R.Fserv<R.Freq?"bad":"good"}">(${f2(R.Fserv/R.Freq)}배)</span>`
       /* F_SA·sigMax는 축방향 하중에서만 구한다 — 횡하중은 외력이 축방향이 아니라 Φ와 무관하다.
          usePhi만 보고 열면 전단 + 해석수준 "하중 계수" 조합에서 null.toFixed로 죽는다.
