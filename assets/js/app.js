@@ -178,10 +178,23 @@ const kOf=(d,p,mu,dw)=>{
   return (0.16*p + 0.58*d2*mu + DKm/2*mu)/d;
 };
 
+/* ══════════════════════════════════════════════════════════
+   와셔 — dhr은 좌면 지름 배수 (d 대비)
+
+   스프링 와셔(DIN 127 B)를 넣되 이완 방지 효과는 모델에 넣지 않는다. 넣을 것이 없다 —
+   적정 축력으로 조이면 완전히 눌려 평와셔와 같아지고, 눌린 뒤의 스프링 힘은 축력의
+   1% 수준이다. NASA 체결 설계 지침과 Junker 횡진동 시험(DIN 65151) 모두 평와셔 대비
+   이완 방지 효과가 없다고 본다. 그래서 계산은 평와셔와 동일하게 하고, "기대하는 기능이
+   없다"는 사실을 검토 항목으로 말한다.
+   dhr 1.75 = DIN 127 B 외경/호칭경 평균 (M3 2.07 · M8 1.78 · M20 1.61 — 호칭경이
+   커질수록 작아진다). 평와셔 2.20보다 작아 면압 분산 효과도 머리 지름 수준이다.
+   ══════════════════════════════════════════════════════════ */
 const WASHER={
   none:{label:"없음",  dhr:0,    desc:"볼트 머리가 직접 접촉"},
   flat:{label:"평와셔", dhr:2.20, desc:"좌면 지름 약 2.2d — 면압 분산"},
-  wide:{label:"대형",   dhr:2.80, desc:"좌면 지름 약 2.8d — 연질재용"}
+  wide:{label:"대형",   dhr:2.80, desc:"좌면 지름 약 2.8d — 연질재용"},
+  spring:{label:"스프링", dhr:1.75, spring:true,
+        desc:"좌면 지름 약 1.75d (DIN 127 B) · 이완 방지 효과는 없습니다"}
 };
 
 /* 80%를 넣은 이유 — 목표 축력 %는 순수 인장 기준이라 비틀림을 더한 실제 항복 이용률과
@@ -605,8 +618,24 @@ function compute(o,_probe){
 
   /* 접시에 와셔를 골라 둔 상태 — 조용히 무시하면 왜 좌면 면압이 "—"인지 알 수 없다 */
   if(washerIgnored)
-    add("warn","와셔 선택","접시머리는 카운터싱크에 앉으므로 "+WASHER[washerSel].label
-        +"가 좌면이 되지 못합니다 — 와셔 없음으로 계산했습니다",WASHER[washerSel].label,"svc");
+    /* 라벨을 조사 앞에 그대로 붙이면 "대형가"·"스프링가"가 된다 — 괄호 안으로 넣어 피한다 */
+    add("warn","와셔 선택","접시머리는 카운터싱크에 앉으므로 선택한 와셔("+WASHER[washerSel].label
+        +")가 좌면이 되지 못합니다 — 와셔 없음으로 계산했습니다",WASHER[washerSel].label,"svc");
+
+  /* 스프링 와셔 — 고르는 이유가 이완 방지인데 그 기능이 없다는 것이 요점이라 항목으로 말한다.
+     rl·저두와 같은 원칙을 따른다: 상시 참인 사실은 설명문에 두고 항목은 판정 가능한 것만 본다 —
+     여기서 판정 가능한 것은 "실제 이완방지 수단이 함께 있는가"다. */
+  if(washerOn && WASHER[washer].spring){
+    const soft = M.alu||M.thin||M.poly;
+    const softNote = soft ? " 절단면이 "+M.label+" 좌면을 파먹을 수 있습니다." : "";
+    if(L.bk>0)
+      add("ok","스프링 와셔","이완은 나사 고정제가 막고 있습니다 — 스프링 와셔는 좌면 지름 분산에만 "
+          +"기여합니다."+softNote,"보조 역할","svc");
+    else
+      add("warn","스프링 와셔","적정 축력으로 조이면 완전히 눌려 이완을 막지 못합니다 "
+          +"(NASA 지침 · Junker 횡진동 시험). 이완이 걱정되면 나사 고정제나 쐐기형(노드록) 와셔를 "
+          +"쓰세요."+softNote,"이완 방지 없음","svc");
+  }
 
   if(util>1.0) add("bad","체결 중 조합응력","인장+비틀림 등가응력이 항복 초과 — 축력 설정을 낮추세요",(util*100).toFixed(0)+"%","str",FIX.util);
   else if(util>0.90) add("warn","체결 중 조합응력","VDI 기준 이용률 90% 초과 — 여유 없음",(util*100).toFixed(0)+"%");
@@ -1655,6 +1684,7 @@ const SRC={
   iso3506:{t:1,label:"ISO 3506-1",      note:"스테인리스 볼트 기계적 성질"},
   iso261 :{t:1,label:"ISO 261 / 68-1",  note:"기본 산형 · 피치 · 유효경/골지름"},
   iso4762:{t:1,label:"ISO 4762",        note:"육각홀붙이 머리 지름"},
+  din127 :{t:1,label:"DIN 127",         note:"스프링 와셔 치수 — 이완 방지 효과는 규정하지 않음"},
   iso4032:{t:1,label:"ISO 4032",        note:"표준 너트 높이 — TDS 시험의 기준 물림"},
   jis    :{t:1,label:"JIS · KS 재료규격", note:"모재 인장강도 (G4051 · G3101 · G5501 등)"},
   vdi    :{t:2,label:"VDI 2230",        note:"볼트 체결 설계 지침 · 표 A5 마찰계수 등급"},
@@ -1769,12 +1799,13 @@ function writeBasis(){
     b.push(`<span class="st">${sn()} · 좌면 면압</span>좌면 지름 ${f1(R.Db)} mm${R.washerOn?" (와셔 기준)":""}<br>`
       +`p = ${f0(R.Fhi)} N ÷ 면적 = <b>${Math.round(R.pBear)} MPa</b> / 한계 ${R.M.pG} MPa `
       +`<span class="${R.pRatio>1?"bad":R.pRatio>0.85?"wr":"good"}">(${(R.pRatio*100).toFixed(0)}%)</span>`
-      +`<br><span class="mut">축력 상한값으로 보수 검토. 좌면 지름은 ${R.washerOn?"와셔 규격":"ISO 4762 머리 치수"} 기준.<br>`
+      +`<br><span class="mut">축력 상한값으로 보수 검토. 좌면 지름은 `+`${R.washerOn?(WASHER[R.washer].spring?"DIN 127 B 스프링 와셔 외경":"와셔 규격"):"ISO 4762 머리 치수"} 기준.`+`${R.washerOn&&WASHER[R.washer].spring?" 눌린 스프링 와셔는 나선이 펴진 자리라 접촉이 고르지 않습니다 — 이 면적은 낙관적인 쪽입니다.":""}<br>`
       +(pgStd
         ? `한계 면압 ${R.M.pG} MPa는 VDI 2230 수록 재질(${R.M.label})과 대응합니다.`
         : `<span class="wr">한계 면압 ${R.M.pG} MPa는 VDI 2230 수록 재질과 직접 대응하지 않는 외삽값입니다 — 원표 대조 필요.</span>`)
       +`</span>`
-      +srcTag("vdi",pgStd?"iso4762":"own"));
+      +srcTag("vdi",pgStd?"iso4762":"own",
+              ...(R.washerOn&&WASHER[R.washer].spring?["din127"]:[])));
   }else{
     b.push(`<span class="st">${sn()} · 좌면 면압</span><span class="wr">${R.H.cone?"접시머리 원추 좌면 — 미검토":"좌면 형상 미정"}</span>`
       +(R.H.cone&&R.dLoad
@@ -2011,7 +2042,8 @@ function openSheet(mode){
       v.bk>0?v.desc+" · M10 이탈 "+v.bk+" N·m ("+v.src+")":v.desc,
       ()=>{S.lock=k;closeSheet();render();}));
   }else if(mode==="washer"){
-    strip("연질 모재(알루미늄·SPCC·수지)에 고강도 볼트를 쓰면 와셔 없이는 좌면이 함몰됩니다.");
+    strip("연질 모재(알루미늄·SPCC·수지)에 고강도 볼트를 쓰면 와셔 없이는 좌면이 함몰됩니다. "
+         +"스프링 와셔는 치수만 반영합니다 — 적정 축력에서는 눌려 평와셔와 같아지고 이완을 막지 못합니다.");
     Object.entries(WASHER).forEach(([k,v])=>opt(S.washer===k,v.label,v.desc,()=>{S.washer=k;closeSheet();render();}));
   }
   const sh=$("sheet");
