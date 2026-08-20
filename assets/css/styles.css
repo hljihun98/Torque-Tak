@@ -412,6 +412,30 @@ th:last-child,td:last-child{padding-right:0}
   .eq{line-height:1.9}
 }
 
+/* ── 1열일 때 카드 순서 ─────────────────────────────────
+   물림 깊이 Le를 검토 항목보다 먼저 둔다. Le가 판정 대부분을 좌우하므로 결과를 먼저
+   읽고 되돌아오는 순서가 어색했다 — 맞추고 나서 읽는 순서로 바꾼다.
+   .col이 display:contents라 카드들이 .app의 직접 자식이 되므로 order로 재배치된다.
+   900px 이상에서는 .app이 그리드가 되고 .col이 block으로 돌아가 order는 무효가 된다.
+
+   한 장만 옮기려 해도 전부 번호를 매겨야 한다 — order 기본값이 0이라 번호 없는 형제가
+   남으면 그쪽이 앞으로 튀어나온다(아코디언이 맨 위로 올라간다).
+   :first-child 류 셀렉터는 실제 DOM을 보므로 여백 규칙은 영향받지 않는다. */
+@media(max-width:899px){
+  .app{display:flex;flex-direction:column}
+  /* 플렉스 아이템의 기본 min-width:auto가 표·칩의 내부 스크롤을 밀어내지 않게 한다 */
+  .app>*,.col>*{min-width:0}
+  #specCard  {order:1}
+  #torqueCard{order:2}
+  #leCard    {order:3}
+  #chkCard   {order:4}
+  #remCard   {order:5}
+  #shankCard {order:6}
+  #loadCard  {order:7}
+  #setCard   {order:8}
+  .col-full>*{order:9}
+}
+
 /* ── 태블릿·데스크톱 2열 ────────────────────────────── */
 @media(min-width:900px){
   body{padding-bottom:40px}

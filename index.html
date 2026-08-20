@@ -23,7 +23,7 @@
 
 <div class="app">
  <div class="col col-a">
-  <section class="card">
+  <section class="card" id="specCard">
     <div class="spec-wrap">
       <div class="lbl">볼트 사양</div>
       <div class="spec-row">
@@ -44,7 +44,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="torqueCard">
     <div class="hero">
       <div class="hero-top">
         <span class="lbl">권장 체결토크</span>
@@ -72,7 +72,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="chkCard">
     <div class="chk-h"><span class="lbl">검토 항목</span><span class="chk-tags" id="chkTags"></span></div>
     <div id="chkList"></div>
   </section>
@@ -97,7 +97,7 @@
  </div>
 
  <div class="col col-b">
-  <section class="card">
+  <section class="card" id="leCard">
     <div class="sec-head">
       <span class="lbl">암나사 물림 깊이 Le</span>
       <span class="v" id="leRead">—</span>
@@ -137,7 +137,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="shankCard">
     <div class="seg-block">
       <div class="lbl">비나사부 길이 (선택) — 넣으면 나사 런아웃·이완 손실까지 검토합니다</div>
       <div class="load-in"><input id="shank" type="number" inputmode="decimal" min="0" step="0.5" placeholder="0" aria-label="비나사부 길이"><span>mm</span></div>
@@ -151,7 +151,7 @@
     <div style="height:14px"></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="loadCard">
     <div class="seg-block">
       <div class="lbl">작용 하중 (선택) — <b>볼트 1개</b>가 받는 하중을 넣으면 필요 축력까지 검토합니다</div>
       <div class="seg" id="segLoad"><div class="seg-ind" id="indLoad"></div></div>
@@ -161,7 +161,7 @@
     <div style="height:14px"></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="setCard">
     <div class="seg-block">
       <div class="lbl">볼트 강도구분</div>
       <div class="seg" id="segCls"><div class="seg-ind" id="indCls"></div></div>
