@@ -202,6 +202,10 @@ const SLV_SEG=[
 const SLV_RANK={geo:0,embed:1,phi:2};
 /* 시판 표준 길이 (ISO 4762 계열) — 볼트 길이 슬라이더가 여기로 스냅한다 */
 const BOLT_LEN=[3,4,5,6,8,10,12,14,16,18,20,22,25,28,30,35,40,45,50,55,60,65,70,80,90,100,110,120,130,140,150,160,180,200];
+/* 사양 문자열이 받아들이는 길이 상한. parse()와 길이 슬라이더가 반드시 같은 값을 봐야 한다 —
+   슬라이더가 이 위를 고르면 사양이 오류 상태로 떨어져 화살표 키 한 번에 앱이
+   "길이 지원 범위 초과"로 바뀐다. M5에서 실제로 그랬다(슬라이더가 200을 골라 M5-200). */
+const lenCapOf=d=>Math.min(300,30*d);
 
 /* ══════════════════════════════════════════════════════════
    모델 상수 — 출처와 성격을 명시
@@ -241,6 +245,9 @@ const FIX={
           "전산(전조 나사) 볼트로 바꿔 비나사부를 없앤다",
           "스페이서·칼라를 넣어 체결 두께를 비나사부보다 크게 만든다",
           "탭 구멍 입구를 카운터보어로 확장해 샹크가 들어갈 자리를 만든다"],
+  cslen :["접시는 호칭 길이에 머리가 포함된다 — 머리 높이보다 긴 길이를 쓴다",
+          "표준 머리로 바꾸면 호칭 길이가 머리 밑부터라 같은 숫자로도 성립한다",
+          "사양 문자열의 길이 값이 맞는지 확인한다 (자릿수 오타)"],
   thlen :["나사부가 더 긴 볼트(전산 볼트)로 바꾼다",
           "물림 깊이 Le를 볼트의 실제 나사부 길이 안으로 줄인다",
           "볼트 길이를 늘려 나사부 길이를 확보한다"],
@@ -259,6 +266,7 @@ const FZ_UM    = 5.0;   // 소성 임베딩량 [µm] — VDI 2230 Table 5.4 계�
 const FZ_UM_W  = 1.5;   // 와셔를 넣으면 접합면이 하나 늘어난다
 const SF_SEP   = 1.5;   // 접합면 분리 방지 안전율 — 하중계수 모델에서 사용
 
+const f1c=n=>n.toFixed(1);           // compute 안에서 쓰는 포맷 — 렌더 층 f1과 별개
 const stressArea=(d,p)=>{const x=d-0.938194*p;return PI/4*x*x;};
 const tauOf=m=>MAT[m].su*0.6*(MAT[m].shear||1);
 const stripArea=(d,Le)=>0.875*PI*d*Le*KNOCK;
@@ -322,7 +330,12 @@ function compute(o,_probe){
      · Lbore = Lu − Le       : 판재 안에서 볼트 원통부가 지나는 구간.
                                접시는 카운터싱크 아래쪽만 남는다 — 샹크가 들어갈 자리다. */
   const headH= H.cone?cskHead(d):0;            // 접시는 호칭 길이에 머리가 포함된다
-  const Lu   = (o.len!=null&&o.len>0) ? o.len-headH : null;   // 머리 밑 원통부 길이
+  /* 접시는 호칭 길이가 머리를 포함하므로 머리 높이보다 짧은 길이는 성립하지 않는다.
+     그냥 빼면 Lu가 음수가 되고, LeReach가 0으로 뭉개져 검토 항목이 "비나사부가 볼트를
+     다 먹었다"고 — 비나사부가 0인데도 — 엉뚱한 범인을 지목했다. 성립 불가를 따로 잡는다. */
+  const lenOK   = o.len!=null && o.len>0;
+  const shortCs = lenOK && !!H.cone && o.len<=headH;
+  const Lu   = (lenOK && !shortCs) ? o.len-headH : null;   // 머리 밑 원통부 길이
   const ls   = Math.max(0,o.shank||0);
   /* 볼트가 내줄 수 있는 최대 물림 — 판재 두께 0을 가정한 최선의 경우.
      비나사부와 불완전 나사 2피치에는 물릴 나사산이 없으므로 뺀다. */
@@ -395,7 +408,9 @@ function compute(o,_probe){
      머리 변형 항 δSK(0.5d)가 대신 받는 것으로 본다 — VDI에 접시머리 모델은 없다. */
   const AN   = PI/4*d*d;                       // 비나사부(전경) 단면적
   const dRoot= d-1.226869*p, Ad3=PI/4*dRoot*dRoot;
-  const Lk   = (o.len!=null&&o.len>0&&hasLe) ? o.len-o.Le : null;  // 체결 두께 = 판재 두께
+  /* 성립 불가 길이(shortCs)에서는 체결 두께도 뜻이 없다 — Lbore만 null이고 Lk는 값이
+     남으면 화면이 "체결 두께 0.1mm"처럼 존재하지 않는 치수를 보여준다. */
+  const Lk   = (lenOK&&!shortCs&&hasLe) ? o.len-o.Le : null;  // 체결 두께 = 판재 두께
   const Lbore= (Lu!=null&&hasLe) ? Lu-o.Le : null;                 // 판재 안 원통 구간
   const slv  = SLV_RANK[o.slevel]!=null ? o.slevel : "embed";
   const shankOn = ls>0 && Lbore!=null && Lbore>0;
@@ -494,8 +509,13 @@ function compute(o,_probe){
 
   /* 볼트 길이 여유 — 판재 두께 0을 가정한 최선의 경우에도 기준을 만족하는지.
      Le 설정과 무관하게 "이 길이를 고른 것이 맞는가"를 보는 항목이다. */
-  if(LeReach===null) add("na","볼트 길이 여유","볼트 길이를 입력하면 검토합니다","—");
-  else if(LeReach<=0) add("na","볼트 길이 여유","비나사부가 볼트를 다 먹어 물릴 나사부가 없습니다","—");
+  if(shortCs)
+    add("bad","볼트 길이","접시머리 높이 "+f1c(headH)+" mm보다 짧은 볼트는 성립하지 않습니다 — "
+        +"접시는 호칭 길이에 머리가 포함됩니다","M"+d+"×"+o.len,"str",FIX.cslen);
+  else if(LeReach===null) add("na","볼트 길이 여유","볼트 길이를 입력하면 검토합니다","—");
+  else if(LeReach<=0) add("na","볼트 길이 여유",ls>0
+      ?"비나사부가 볼트를 다 먹어 물릴 나사부가 없습니다"
+      :"물릴 나사부가 남지 않습니다","—");
   else if(LeReach<LeMin)
     add("bad","볼트 길이 여유","판재 두께 0을 가정해도 최대 물림 "+LeReach.toFixed(1)
         +" mm < 최소 "+LeMin.toFixed(1)+" mm — 볼트가 짧습니다",LeReach.toFixed(1)+" mm","str",FIX.reach);
@@ -690,7 +710,7 @@ function compute(o,_probe){
          okPossible,threads,margin,limited,hasLe,Le:o.Le,
          L,Tfric,Tadh,Trem,remRatio,adhBase,
          Trec,Tbreak,sigma,tau,sigEq,util,Db,dLoad,pBear,pRatio,
-         headH,Lu,Lk,Lbore,ls,lg,slv,shankOn,dS,dP,phi,Fz,
+         headH,shortCs,Lu,Lk,Lbore,ls,lg,slv,shankOn,dS,dP,phi,Fz,
          embedCalc,embedCapped,embedUse,useEmbed,usePhi,turnDeg,Fsa,sigMax,len:o.len,
          checks,lvl,tag,txt,nBad,nWarn,thinRegime,loadType:o.loadType,load:o.load};
 }
@@ -727,7 +747,7 @@ function parse(raw){
   /* 길이도 상한을 걸어야 한다 — 오타 한 자리가 물림 슬라이더 전체 축척을 망가뜨리고,
      터무니없이 긴 볼트는 뽑힘 여유를 무한히 키워 "적합"을 잘못 띄운다. */
   if(out.len!=null){
-    const lmax=Math.min(300,30*out.d);
+    const lmax=lenCapOf(out.d);
     if(out.len<=0)return{err:"길이는 0보다 커야 합니다."};
     if(out.len>lmax)return{err:"M"+out.d+" 길이는 "+lmax+"mm 이하만 지원합니다."};
   }
@@ -1366,6 +1386,10 @@ const leMax=()=>{
      76.9mm) 트랙을 거기까지 늘리면 실무 구간이 왼쪽 7%로 뭉개져 슬라이더를 못 쓴다.
      6d에서 끊고, 넘어간 기준선은 트랙 끝에 붙여 "눈금 밖"으로 표시한다. */
   if(R&&isFinite(R.LeOk))m=Math.max(m,Math.min(R.LeOk*1.08,P.d*6));
+  /* 지금 값이 트랙 밖이면 눈금을 늘려서라도 덮는다 — 안 그러면 썸이 끝에 박히고
+     ARIA가 valuenow > valuemax인 범위를 읽는다. 저장값 복원처럼 밖에서 들어온
+     값에 대한 마지막 방어선이다(키보드 쪽은 clampLe이 막는다). */
+  if(R&&R.hasLe&&isFinite(R.Le))m=Math.max(m,R.Le);
   return m;
 };
 
@@ -1377,7 +1401,13 @@ const headHOf =()=>(P&&!P.err&&HEAD[S.head].cone)?cskHead(P.d):0;
 const lenOn   =()=>S.lenSlider&&!!P&&!P.err;
 const snapIn  =(list,v)=>list.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
 /* 머리 밑에서 쓸 수 있는 길이 = 체결 두께 + 물림 */
-const availLen=()=>(P&&!P.err&&P.len!=null)?P.len-headHOf():null;
+const availLen=()=>{
+  if(!P||P.err||P.len==null)return null;
+  /* 접시 머리보다 짧은 길이는 성립하지 않는다 — 음수를 흘리면 leCap이 0이 되어
+     슬라이더가 이유 없이 잠긴 것처럼 보인다. null로 돌리면 검토 항목이 이유를 말한다. */
+  const a=P.len-headHOf();
+  return a>0?a:null;
+};
 /* 볼트 길이 슬라이더 상한 — 호칭경 기준으로 잡고 표준 길이에 맞춘다.
    이미 입력된 길이가 그보다 길면 그 길이까지 덮어야 한다. 안 그러면 ARIA 범위를
    벗어나고, 슬라이더를 한 번 건드린 순간 볼트가 조용히 짧아진다. */
@@ -1389,7 +1419,12 @@ const lenMax  =()=>{const t=Math.max(25,8*(P&&!P.err?P.d:5),
    grip이 곧 체결 두께라 여기에 머리 높이를 또 더하면 안 된다. */
 const lenMin  =()=>S.Le>0?Math.max(headHOf(),S.grip):headHOf();
 /* 바닥을 만족하는 표준 길이 목록 — 없으면 길이를 건드리지 않는다 */
-const lenPicks=()=>BOLT_LEN.filter(x=>x>=lenMin());
+/* 바닥은 판재 관통, 천장은 사양이 받아 주는 한계 — 위를 안 자르면 화살표 키가
+   BOLT_LEN 끝(200)까지 걸어가고 그 값이 사양 상한을 넘으면 오류 상태가 된다. */
+const lenPicks=()=>{
+  const hi=(P&&!P.err)?lenCapOf(P.d):Infinity;
+  return BOLT_LEN.filter(x=>x>=lenMin()&&x<=hi);
+};
 /* 사양 문자열을 다시 쓰되 비표준 피치와 머리 표기는 보존한다 */
 function specWithLen(len){
   const h=S.head!=="std"?" "+HEAD[S.head].label.replace(" CS",""):"";
@@ -1414,7 +1449,10 @@ function leCap(){
   const th=a-S.shank-2*(P.pitch||0);
   return th>0?th:a;
 }
-function clampLe(v){ return Math.max(0,Math.min(v,leCap())); }
+/* 볼트 길이가 없으면 물리적 상한(leCap)이 없다. 그대로 두면 화살표 키를 계속 눌러
+   Le를 트랙 밖까지 밀 수 있고, 썸은 끝에 붙은 채 숫자와 나사산 수만 올라간다.
+   트랙 상한을 함께 씌운다 — 길이가 있으면 leCap ≤ leMax라 동작이 달라지지 않는다. */
+function clampLe(v){ return Math.max(0,Math.min(v,leCap(),leMax())); }
 /* 판재 두께를 비나사부에 맞췄을 때의 물림 — 제안값.
    실무에서 부분나사 볼트를 고르는 순서가 "판재 두께 = 비나사부"이므로 값을 넣으면
    물림이 따라오는 게 자연스럽다. 다만 자동으로 덮어쓰지는 않는다 — 비나사부와 판재
