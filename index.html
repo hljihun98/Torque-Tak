@@ -8,7 +8,10 @@
 <meta name="description" content="볼트 체결 조건에 따른 권장 토크를 빠르게 계산하는 모바일 웹 도구">
 <title>Torque Tak! · 볼트 체결토크</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21.4 12 16.7 20.1 7.3 20.1 2.6 12 7.3 3.9 16.7 3.9Z' fill='none' stroke='%230B1220' stroke-width='1.9' stroke-linejoin='round'/><circle cx='12' cy='12' r='3.7' fill='%231B57E8'/></svg>">
-<link rel="stylesheet" href="assets/css/styles.css">
+<!-- 계산값이 바뀌는 수정을 배포할 때는 ?v= 를 반드시 올린다. 빌드가 없어 파일명이 고정이라
+     기존 방문자는 캐시의 옛 app.js를 그대로 받는데, 이 도구에서 그건 "어제와 다른 숫자"가
+     아니라 "어제 그대로인 숫자"로 나타나서 알아채지 못한다. css·js를 같은 토큰으로 묶는다. -->
+<link rel="stylesheet" href="assets/css/styles.css?v=2026-08-24">
 </head>
 <body>
 <div class="bar" id="bar">
@@ -256,6 +259,6 @@
   <div class="sheet-b" id="sheetBody"></div>
 </div>
 <div class="toast" id="toast"></div>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/app.js?v=2026-08-24"></script>
 </body>
 </html>
