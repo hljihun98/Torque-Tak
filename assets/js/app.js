@@ -825,7 +825,10 @@ function parse(raw){
     if(out.len<=0)return{err:"길이는 0보다 커야 합니다."};
     if(out.len>lmax)return{err:"M"+out.d+" 길이는 "+lmax+"mm 이하만 지원합니다."};
   }
-  if(!out.head){out.head="std";out.assumed.push("표준 머리 가정");}
+  /* 머리 가정은 문자열이 아니라 플래그로 남긴다 — 머리 버튼으로 직접 고르면 이 가정은
+     더 이상 유효하지 않은데, assumed에 섞어 두면 렌더에서 그 사실을 가려낼 수 없어
+     "저두"를 골라도 "표준 머리 가정" 칩이 계속 붙어 있었다. */
+  if(!out.head){out.head="std";out.headAssumed=true;}
   return out;
 }
 
@@ -1008,6 +1011,9 @@ function render(fast){
         :R.shankOn?"길이 "+P.len+" · 그립 "+R.Lk.toFixed(1)+" mm"
         :"길이 "+P.len+" · 토크 무관", R.shankOn?"b":"mute");
     P.assumed.forEach(t=>chip(t,"w"));
+    /* 머리 가정 칩은 그 가정이 아직 화면을 지배할 때만 — headAuto가 꺼져 있으면
+       머리는 사용자가 직접 고른 것이므로 가정이 아니다 */
+    if(P.headAssumed&&S.headAuto)chip("표준 머리 가정","w");
   }
 
   setState(R.lvl);
