@@ -12,14 +12,16 @@
     /* 화이트 톤 고정 (다크모드에서도 흰 화면 유지) */
     :root {
       color-scheme: light;
-      --bg: #ffffff; --card: #ffffff; --soft: #f5f7fa; --text: #1d2433; --muted: #5b6577;
-      --accent: #0b5cd5; --accent-hover: #0849ab; --track: #edf0f5; --border: #e6eaf0;
+      --bg: #ffffff; --card: #ffffff; --soft: #f5f7fa; --text: #1d2433; --muted: #5b6577; --faint: #8a93a3;
+      --accent: #0b5cd5; --accent-hover: #0849ab; --accent-soft: #eef4fe; --accent-line: #c9dafa;
+      --track: #edf0f5; --border: #e6eaf0;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
       background: var(--bg); color: var(--text);
       font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+      word-break: keep-all;
     }
     .card {
       width: 100%; max-width: 440px; background: var(--card); border: 1px solid var(--border);
@@ -28,17 +30,32 @@
     }
     .badge {
       display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .02em;
-      color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent); background: var(--accent-soft);
       padding: 4px 10px; border-radius: 999px; margin-bottom: 14px;
     }
-    h1 { font-size: 22px; margin: 0 0 10px; }
-    p { margin: 0 0 6px; color: var(--muted); line-height: 1.6; font-size: 15px; }
-    .new-url {
-      display: block; margin: 16px 0 20px; padding: 10px 12px; border-radius: 8px;
-      background: var(--soft); color: var(--text); font-size: 13px; word-break: break-all;
+    h1 { font-size: 22px; line-height: 1.4; margin: 0 0 22px; }
+
+    /* 이전 사이트 → 새 사이트 */
+    .site { border-radius: 12px; padding: 14px 16px; }
+    .site .label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .site .name { display: block; font-size: 20px; font-weight: 800; letter-spacing: .01em; }
+    .site .url {
+      display: block; margin-top: 4px; font-size: 12px; word-break: break-all;
       font-family: ui-monospace, Consolas, monospace;
     }
-    .bar { height: 6px; background: var(--track); border-radius: 999px; overflow: hidden; margin-bottom: 10px; }
+    .site.old { background: var(--soft); color: var(--faint); }
+    .site.old .name { font-size: 17px; font-weight: 700; text-decoration: line-through; text-decoration-thickness: 2px; }
+    .site.new { background: var(--accent-soft); border: 1.5px solid var(--accent-line); }
+    .site.new .label { color: var(--accent); }
+    .site.new .name { color: var(--accent); }
+    .site.new .url { color: var(--muted); }
+    .arrow {
+      width: 32px; height: 32px; margin: -6px auto; position: relative; z-index: 1;
+      display: grid; place-items: center; border-radius: 50%;
+      background: var(--card); border: 1px solid var(--border); color: var(--accent);
+    }
+
+    .bar { height: 6px; background: var(--track); border-radius: 999px; overflow: hidden; margin: 24px 0 10px; }
     .bar > span {
       display: block; height: 100%; width: 0; background: var(--accent);
       animation: fill 5s linear forwards;
@@ -46,31 +63,37 @@
     @keyframes fill { to { width: 100%; } }
     .count { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
     .count b { color: var(--text); }
-    .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
     .btn {
-      display: inline-block; padding: 11px 20px; border-radius: 10px; font-size: 15px;
-      font-weight: 600; text-decoration: none; cursor: pointer; border: 0;
+      display: block; padding: 13px 20px; border-radius: 10px; font-size: 15px;
+      font-weight: 700; text-decoration: none; background: var(--accent); color: #fff;
     }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    .tip { margin-top: 18px; font-size: 13px; }
+    .btn:hover { background: var(--accent-hover); }
+    .tip { margin: 16px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
   </style>
 </head>
 <body>
   <main class="card">
-    <span class="badge">사이트 이전 안내</span>
-    <h1>Torque-Tak이 SMART MAINTENANCE로 통합되었습니다</h1>
-    <p>앞으로는 아래 새 주소에서 이용해 주세요.</p>
-    <code class="new-url">hljihun98.github.io/SMART_MAINTENANCE/</code>
+    <span class="badge">사이트 통합 안내</span>
+    <h1>새 사이트로 통합되었습니다</h1>
 
-    <div class="bar"><span id="bar"></span></div>
-    <div class="count" id="count"><b id="sec">5</b>초 후 자동으로 이동합니다</div>
-
-    <div class="actions">
-      <a class="btn btn-primary" id="go" href="https://hljihun98.github.io/SMART_MAINTENANCE/">지금 이동</a>
-      <a class="btn btn-ghost" href="legacy.html">기존 계산기 계속 쓰기</a>
+    <div class="site old">
+      <span class="label">이전 사이트</span>
+      <span class="name">Torque Tak</span>
+      <span class="url">hljihun98.github.io/Torque-Tak/</span>
     </div>
+    <div class="arrow" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </div>
+    <div class="site new">
+      <span class="label">새 사이트</span>
+      <span class="name">SMART MAINTENANCE</span>
+      <span class="url">hljihun98.github.io/SMART_MAINTENANCE/</span>
+    </div>
+
+    <div class="bar"><span></span></div>
+    <div class="count"><b id="sec">5</b>초 후 자동으로 이동합니다</div>
+
+    <a class="btn" id="go" href="https://hljihun98.github.io/SMART_MAINTENANCE/">SMART MAINTENANCE로 지금 이동</a>
 
     <p class="tip">즐겨찾기를 새 주소로 바꿔 두시면 편합니다.</p>
   </main>

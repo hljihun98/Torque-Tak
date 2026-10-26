@@ -1,6 +1,6 @@
 # Torque Tak!
 
-> **이전 안내** — Torque Tak은 [SMART MAINTENANCE](https://hljihun98.github.io/SMART_MAINTENANCE/)로 통합되었습니다. 기존 주소로 접속하면 새 사이트로 자동 이동합니다. 기존 계산기는 `legacy.html`에 남아 있습니다.
+> **이전 안내** — Torque Tak은 [SMART MAINTENANCE](https://hljihun98.github.io/SMART_MAINTENANCE/)로 통합되었습니다. 기존 주소로 접속하면 새 사이트로 자동 이동합니다. 아래는 통합 전 계산기의 설명이며, 그 코드는 git 기록에 남아 있습니다.
 
 볼트 사양과 체결 조건에서 권장 체결토크를 내고, 그 체결부가 성립하는지까지 한 화면에서 검토하는 모바일 우선 정적 웹 애플리케이션입니다.
 
